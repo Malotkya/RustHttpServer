@@ -1,17 +1,20 @@
+/** Http Request
+ * 
+ * @author Alex Malotky
+ */
 use std::io::{ prelude::*, BufReader, Error, ErrorKind};
 use std::net::TcpStream;
 use std::collections::HashMap;
 
+/// Http Request
+#[allow(dead_code)]
 pub struct Request {
     path: String,
     method: String,
     headers: HashMap<String, String>
 }
 
-/** Request
- * 
- * Currently only handles get requests.
- */
+#[allow(dead_code)]
 impl Request {
     pub fn new(mut stream: &TcpStream)->Result<Request, Error>{
         let buffer: Vec<_> = BufReader::new(&mut stream)

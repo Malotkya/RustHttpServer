@@ -1,8 +1,14 @@
+/** Http Response
+ * 
+ * @author Alex Malotky
+ */
 use std::collections::HashMap;
 use std::net::TcpStream;
 use std::io::{Write, Error, ErrorKind};
 use crate::http_status;
 
+/// Http Response
+#[allow(dead_code)]
 pub struct Response {
     status: u16,
     headers: HashMap<String, String>,
@@ -10,6 +16,7 @@ pub struct Response {
     stream: TcpStream
 }
 
+#[allow(dead_code)]
 impl Response {
     pub fn new(stream: TcpStream)->Response{
         let status = 200;

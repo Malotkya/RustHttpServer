@@ -1,4 +1,11 @@
-//https://developer.mozilla.org/en-US/docs/Web/HTTP/Status
+/** Http Status Codes
+ * 
+ * Values From: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status
+ * 
+ * @author Alex malotky
+ */
+
+ /// Get Message From Code
 pub fn get_message(value:u16) -> &'static str{
 
     //Information Responses
