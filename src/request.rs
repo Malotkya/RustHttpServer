@@ -13,8 +13,8 @@ pub struct Request {
  * Currently only handles get requests.
  */
 impl Request {
-    pub fn new(mut raw_request: TcpStream )->Result<Request, Error>{
-        let buffer: Vec<_> = BufReader::new(&mut raw_request)
+    pub fn new(mut stream: &TcpStream)->Result<Request, Error>{
+        let buffer: Vec<_> = BufReader::new(&mut stream)
             .lines()
             .map(|result| result.unwrap())
             .take_while(|line| !line.is_empty())
@@ -24,10 +24,10 @@ impl Request {
 
         if status.len() < 2{
             return Err(Error::new(ErrorKind::InvalidData, "Malformed Http Request!"));
-        } else if status[2].trim() == "HTTP/1.1" {
+        }/* else if status[2].trim() == "HTTP/1.1" {
             println!("{:?}", status[2]);
             return Err(Error::new(ErrorKind::InvalidData, "Request is not an Http Request!"));
-        }
+        }*/
 
         let method:String = String::from(status[0]);
         let path:String = String::from(status[1]);
