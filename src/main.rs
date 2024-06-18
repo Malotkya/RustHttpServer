@@ -1,19 +1,17 @@
 use std::net::TcpListener;
 
 mod request;
+mod response;
+mod http_status;
 
 fn server(listner: TcpListener){
     for stream in listner.incoming() {
-        match stream {
-            Ok(stream) => {
-                let request = request::Request::new(stream).unwrap();
+        let stream = stream.unwrap();
 
-                println!("{}", request.path());
-            }
-            Err(e) => {
-                panic!("There was an issue with the incoming message:\n{}", e);
-            }
-        }
+        let _request = request::Request::new(&stream).unwrap();
+        let mut response = response::Response::new(stream);
+        response.status(404).unwrap();
+        response.write("Hello World".as_bytes()).unwrap();
     }
 }
 
