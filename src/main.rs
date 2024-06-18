@@ -1,8 +1,11 @@
 use std::net::TcpListener;
 
-mod request;
-mod response;
-mod http_status;
+const DATA: &str= "<form method='POST'><input name='textbox'/><br/><input type='radio' name='button' value='hello world' /><br/><button>Submit</button></form>";
+
+pub mod request;
+pub mod response;
+pub mod http_status;
+//pub mod router;
 
 fn server(listner: TcpListener){
     for stream in listner.incoming() {
@@ -11,7 +14,7 @@ fn server(listner: TcpListener){
         let _request = request::Request::new(&stream).unwrap();
         let mut response = response::Response::new(stream);
         response.status(404).unwrap();
-        response.write("Hello World".as_bytes()).unwrap();
+        response.write(DATA.as_bytes()).unwrap();
     }
 }
 
