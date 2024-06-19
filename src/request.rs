@@ -2,7 +2,7 @@
  * 
  * @author Alex Malotky
  */
-use std::io::{ prelude::*, BufReader, Error, ErrorKind};
+use std::io::{prelude::*, BufReader, Error, ErrorKind};
 use std::net::TcpStream;
 use std::collections::HashMap;
 
@@ -13,20 +13,34 @@ pub struct Request {
     method: String,
     headers: HashMap<String, String>,
     path: String,
-    query: HashMap<String, String>
-
+    query: HashMap<String, String>,
+    pub body: BufReader<TcpStream>
 }
 
 #[allow(dead_code)]
 impl Request {
-    pub fn new(mut stream: &TcpStream)->Result<Request, Error>{
-        let buffer: Vec<_> = BufReader::new(&mut stream)
-            .lines()
-            .map(|result| result.unwrap())
-            .take_while(|line| !line.is_empty())
-            .collect();
+    pub fn new(stream:TcpStream)->Result<Request, Error>{
+        let mut buffer = BufReader::new(stream);
+        let mut line = String::new();
+        let mut size = buffer.read_line(&mut line).unwrap();
+        let mut raw_headers: Vec<String> = Vec::new();
 
-        let status:Vec<_> = (&buffer[0]).split(" ").collect();
+        //Read in Headers
+        while size > 0{
+            if line != "\r\n" {
+                raw_headers.push(line.trim().to_string());
+                line = String::new();
+                size = buffer.read_line(&mut line).unwrap();
+            } else {
+                size = 0;
+            }
+        }
+
+        if raw_headers.len() <= 0 {
+            return Err(Error::new(ErrorKind::InvalidData, "No Http Headers found in Request!"));
+        }
+
+        let status:Vec<_> = (&raw_headers[0]).split(" ").collect();
 
         if status.len() < 2{
             return Err(Error::new(ErrorKind::InvalidData, "Malformed Http Request!"));
@@ -39,32 +53,36 @@ impl Request {
         let url:String = String::from(status[1]);
         let mut headers:HashMap<String, String> = HashMap::new();
 
-        for index in 1..buffer.len() {
-            let line:Vec<_> = buffer[index].split(":").collect();
-            println!("{}: {}", line[0], line[1]);
+        for index in 1..raw_headers.len() {
+            let line:Vec<_> = raw_headers[index].split(":").collect();
             headers.insert(line[0].trim().to_string(), line[1].trim().to_string());
         }
 
         //Data from url
         let url_array:Vec<_> = url.split("?").collect();
         let path = String::from(url_array[0]);
-        let search_string = String::from(url_array[1]);
+        let mut search_string = String::from("");
+        if url_array.len() > 1 {
+            search_string = String::from(url_array[1]);
+        }
         let mut query = HashMap::new();
 
         for string in search_string.split("&"){
             let buffer: Vec<_> = string.split("=").collect();
-            query.insert(String::from(buffer[0].trim()), String::from(buffer[1].trim()));
+            if buffer.len() > 1 {
+                query.insert(String::from(buffer[0].trim()), String::from(buffer[1].trim()));
+            }
         }
 
         Ok( Self {
-            method, url, headers, path, query
+            method, url, headers, path, query, body: buffer
         })
     }
 
     pub fn path(&self) -> &str {
         &self.path
     }
-
+ 
     pub fn method(&self) -> &str {
         &self.method
     }
