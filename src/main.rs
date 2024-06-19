@@ -1,18 +1,29 @@
 use std::net::TcpListener;
+use std::io::Read;
 
 const DATA: &str= "<form method='POST'><input name='textbox'/><br/><input type='radio' name='button' value='hello world' /><br/><button>Submit</button></form>";
 
 pub mod request;
 pub mod response;
 pub mod http_status;
+//pub mod url;
 //pub mod router;
 
 fn server(listner: TcpListener){
-    for stream in listner.incoming() {
-        let stream = stream.unwrap();
+    for connection in listner.incoming() {
+        let stream = connection.unwrap();
+        let clone = stream.try_clone().unwrap();
 
-        let _request = request::Request::new(&stream).unwrap();
-        let mut response = response::Response::new(stream);
+        let request = request::Request::new(stream).unwrap();
+        let mut response = response::Response::new(clone);
+
+        //Read Post Data
+        /*if request.method() == "POST" {
+            let buffer: Vec<_> = request.body.bytes().map(|byte|byte.unwrap()).collect();
+            let body_string = String::from_utf8(buffer).unwrap();
+            println!("{:?}", body_string);
+        }*/
+
         response.status(404).unwrap();
         response.write(DATA.as_bytes()).unwrap();
     }
