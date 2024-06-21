@@ -1,24 +1,19 @@
-use regex::Regex;
-
+use regex::{Regex, Error as RegexError, Captures, Replacer};
 use crate::path::lexer::{ lexer, TokenType};
-use crate::path::key::Key;
-use crate::path::PathFunction;
-use std::io::{Error, ErrorKind};
-
-type Encode = fn(String)->String;
-fn no_encode(s:String)->String{
-    s
-}
+use crate::path::key::{Key, key_to_regexp_gen};
+use crate::path::{Encode, no_encode, escape};
+use std::io::Error;
 
 pub type Token = Result<Key, String>;
 fn token_string(string: String)->Token {
     Err(string)
 }
+
 fn token_key(encode: Encode, delimiter:String, name:String, pattern:Option<String>, input_prefix:Option<String>, input_suffix:Option<String>, modifier:Option<String>)->Token {
-    let prefix = encode(input_prefix.unwrap_or("".to_string()));
-    let suffix = encode(input_suffix.unwrap_or("".to_string()));
-    let modifier = modifier.unwrap_or("".to_string());
-    let pattern = pattern.unwrap_or("".to_string());
+    let prefix = encode(input_prefix.unwrap_or(String::new()));
+    let suffix = encode(input_suffix.unwrap_or(String::new()));
+    let modifier = modifier.unwrap_or(String::new());
+    let pattern = pattern.unwrap_or(String::new());
 
     let separator:Option<String> = if modifier == "*" || modifier == "+" {
         let postfix:String = if !suffix.is_empty()  {
@@ -42,43 +37,71 @@ pub struct ParseOptions {
     encode_path: Encode
 }
 
+lazy_static! {
+    static ref DEFAULT_PREFIX:String = String::from("./");
+    static ref DEFAULT_DELIMITER:String = String::from("/");
+}
+
 impl ParseOptions {
-    pub fn Default()->ParseOptions{
+    pub fn default()->ParseOptions{
         ParseOptions{
-            prefixes: String::from("./"),
-            delimiter: String::from("/"),
+            prefixes: DEFAULT_PREFIX.to_owned(),
+            delimiter: DEFAULT_DELIMITER.to_owned(),
             encode_path: no_encode
+        }
+    }
+
+    pub fn from(data:CompileOptions)->ParseOptions {
+        ParseOptions{
+            delimiter: data.delimiter.clone(),
+            prefixes: data.prefixes.clone(),
+            encode_path: data.encode_path.clone()
         }
     }
 }
 
 pub struct CompileOptions {
-    delimiter: String,
-    prefixes: String,
-    encode_path: Encode,
-    sensitive: bool,
-    loose: String,
-    validate:bool,
-    encode: Option<Encode>
+    pub delimiter: String,
+    pub prefixes: String,
+    pub encode_path: Encode,
+    pub sensitive: bool,
+    pub loose: String,
+    pub end: bool,
+    pub start: bool,
+    pub trailing: bool
 }
 
 impl CompileOptions {
-    pub fn Default()->CompileOptions{
+    pub fn default()->CompileOptions{
         CompileOptions{
-            prefixes: String::from("./"),
-            delimiter: String::from("/"),
+            prefixes: DEFAULT_PREFIX.to_owned(),
+            delimiter: DEFAULT_DELIMITER.to_owned(),
             encode_path: no_encode,
-            encode: None, //TODO: encodeURIComponent,
-            loose:  String::from("/"),
-            validate: true,
+            loose:  DEFAULT_DELIMITER.to_owned(),
+            end: true,
+            start: true,
+            trailing: true,
             sensitive: false
+        }
+    }
+
+    pub fn new(prefixes:Option<String>, delimiter:Option<String>, encode_path: Option<Encode>, loose:Option<String>, start: Option<bool>, end: Option<bool>, trailing: Option<bool>, sensitive: Option<bool>)->CompileOptions {
+        CompileOptions {
+            prefixes: prefixes.unwrap_or(DEFAULT_PREFIX.to_owned()),
+            delimiter: delimiter.unwrap_or(DEFAULT_DELIMITER.to_owned()),
+            encode_path: encode_path.unwrap_or(no_encode),
+            loose: loose.unwrap_or(DEFAULT_DELIMITER.to_owned()),
+            start: start.unwrap_or(true),
+            end: end.unwrap_or(true),
+            trailing: trailing.unwrap_or(true),
+            sensitive: sensitive.unwrap_or(false)
         }
     }
 }
 
 struct TokenData {
     tokens: Vec<Token>, 
-    delimter: String
+    delimiter: String
 }
 
 pub fn parse(str:String, opts: ParseOptions) -> Result<TokenData, Error> {
@@ -174,7 +197,7 @@ pub fn parse(str:String, opts: ParseOptions) -> Result<TokenData, Error> {
         if open.is_some() {
             let prefix = it.text();
             let name = it.try_consume(TokenType::Name);
-            let patter = it.try_consume(TokenType::Pattern);
+            let pattern = it.try_consume(TokenType::Pattern);
             let suffix = it.text();
 
             it.consume(TokenType::ClosedBracket);
@@ -209,106 +232,78 @@ pub fn parse(str:String, opts: ParseOptions) -> Result<TokenData, Error> {
         break;
     }
 
-    return Ok(TokenData{tokens, delimter: opts.delimiter})
+    return Ok(TokenData{tokens, delimiter: opts.delimiter})
 }
 
-pub fn token_to_function(token:Token, encode: Option<Encode>)->PathFunction {
-    match token {
-        Err(string)=> Box::new(move |_ignore|{return Ok(string.clone());}),
-        Ok(token)=>{
+struct LooseReplacer;
 
-            let optional:bool = token.modifier == "?" || token.modifier == "*";
-            let encode_value: Encode = if encode.is_some() {
-                encode.unwrap()
-            } else {
-                no_encode
-            };
+impl Replacer for LooseReplacer {
+    fn replace_append(&mut self, cap: &Captures<'_>, output:&mut String){
+        let value = String::from(&cap["value"]);
+        let loose = String::from(&cap["loose"]);
 
-            if encode.is_some() && token.separator.is_some() {
-                //let stringify = encode_value;
-                let separator = token.separator.unwrap();
+        if loose.is_empty() {
+            output.push_str(&value);
+        } else {
+            output.push_str(&format!("{}+", escape(value)))
+        }
 
-                if optional {
-                    return Box::new(move |data|{
-                        if data.is_none() {
-                            return Ok(String::new());
-                        }
-                        let data = data.unwrap();
-                        let value = data.get(&token.name);
-                        if value.is_none() {
-                            return Ok(String::new());
-                        }
+    }
+}
 
-                        let value = value.unwrap();
-                        if value.len() == 0 {
-                            return Ok(String::new());
-                        }
-
-                        let mut output = token.prefix.clone();
-                        for string in value {
-                            output += string.as_str();
-                            output += separator.as_str();
-                        }
-                        return Ok(output + token.suffix.as_str());
-                    })
-                }
-
-                return Box::new(move |data|{
-                    if data.is_none(){
-                        return Err(Error::new(ErrorKind::NotFound, "Data is Undefind!"));
-                    }
-                    let data = data.unwrap();
-                    let value = data.get(&token.name);
-                    if value.is_none() {
-                        return Err(Error::new(ErrorKind::NotFound, format!("'{}' not found in data!", &token.name)))
-                    }
-                    let value = value.unwrap();
-                    if value.len() == 0 {
-                        return Ok(String::new());
-                    }
-
-                    let mut output = token.prefix.clone();
-                    for string in value {
-                        output += encode_value(string.to_string()).as_str();
-                        output += separator.as_str();
-                    }
-                    return Ok(output + token.suffix.as_str());
-                })
-            }
-
-            if optional {
-                return Box::new(move |data|{
-                    if data.is_none(){
-                        return Err(Error::new(ErrorKind::NotFound, "Data is Undefind!"));
-                    }
-                    let data = data.unwrap();
-                    let value = data.get(&token.name);
-                    if(value.is_none()){
-                        return Ok(String::new());
-                    }
-                    let value = value.unwrap();
-                    let mut output:String = token.prefix.clone();
-                    output += encode_value(value[0].to_string()).as_str();
-                    output += token.suffix.as_str();
-                    return Ok(output);
-                });
-            }
-
-            return Box::new(move |data|{
-                if data.is_none(){
-                    return Err(Error::new(ErrorKind::NotFound, "Data is Undefind!"));
-                }
-                let data = data.unwrap();
-                let value = data.get(&token.name);
-                if value.is_none() {
-                    return Err(Error::new(ErrorKind::NotFound, format!("'{}' not found in data!", &token.name)))
-                }
-                let value = value.unwrap();
-                let mut output:String = token.prefix.clone();
-                output += encode_value(value[0].to_string()).as_str();
-                output += token.suffix.as_str();
-                return Ok(output);
-            });
+fn to_stringify(loose:String)->Result<Box<dyn Fn(String)->String>, RegexError>{
+    match Regex::new(&format!("(?<value>[^{}]+|(?<loose>.))", escape(loose))) {
+        Err(e)=>Err(e), 
+        Ok(regex) => {
+            Ok(Box::new(move |value:String|->String{
+                let mut value = value.clone();
+                regex.replace(&mut value, LooseReplacer);
+                return value;
+            }))
         }
     }
+}
+
+pub fn token_to_regexp(data:TokenData, keys:&mut Vec<Key>, options:CompileOptions)->Result<Regex, RegexError>{
+    let stringify:Box<dyn Fn(String)->String> = if options.loose.is_empty() {
+        Box::new(|value:String|->String{escape(value)})
+    } else {
+        let temp = to_stringify(options.loose);
+        if temp.is_err() {
+            let err = temp.err().unwrap();
+            Err(err);
+        }
+        temp.unwrap()
+    };
+    let mut key_to_regexp = key_to_regexp_gen(stringify.as_ref(), data.delimiter.clone());
+    let mut pattern = String::new();
+
+    if options.start {
+        pattern += "^";
+    }
+
+    for token in data.tokens {
+        match token {
+            Err(str)=>pattern += str.as_str(),
+            Ok(token)=>{
+                if !token.name.is_empty() {
+                    keys.push(token.clone());
+                }
+                let regex = key_to_regexp(token);
+                pattern += &regex;
+            }
+        }
+    }
+
+    if options.trailing {
+        pattern += &format!("(?:{})?", stringify(data.delimiter.clone()));
+    }
+
+    if options.end {
+        pattern += "$";
+    } else {
+        pattern += &format!("(?={}|$)", escape(data.delimiter.clone()));
+    }
+
+    return Regex::new(&pattern);
 }
