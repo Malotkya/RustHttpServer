@@ -51,7 +51,7 @@ impl ParseOptions {
         }
     }
 
-    pub fn from(data:CompileOptions)->ParseOptions {
+    pub fn from(data:&CompileOptions)->ParseOptions {
         ParseOptions{
             delimiter: data.delimiter.clone(),
             prefixes: data.prefixes.clone(),
@@ -268,15 +268,17 @@ pub fn token_to_regexp(data:TokenData, keys:&mut Vec<Key>, options:CompileOption
     let stringify:Box<dyn Fn(String)->String> = if options.loose.is_empty() {
         Box::new(|value:String|->String{escape(value)})
     } else {
-        let temp = to_stringify(options.loose);
-        if temp.is_err() {
-            let err = temp.err().unwrap();
-            Err(err);
+        let result = to_stringify(options.loose);
+        if result.is_err() {
+            let err = result.err().unwrap();
+            return Err(err);
         }
-        temp.unwrap()
+        result.unwrap()
     };
-    let mut key_to_regexp = key_to_regexp_gen(stringify.as_ref(), data.delimiter.clone());
+
+    let mut key_to_regexp = key_to_regexp_gen(&stringify, data.delimiter.clone());
     let mut pattern = String::new();
+
 
     if options.start {
         pattern += "^";
