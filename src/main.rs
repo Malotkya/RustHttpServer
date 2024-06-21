@@ -1,12 +1,14 @@
+#[macro_use]
+extern crate lazy_static;
+
 use std::net::TcpListener;
-use std::io::Read;
 
 const DATA: &str= "<form method='POST'><input name='textbox'/><br/><input type='radio' name='button' value='hello world' /><br/><button>Submit</button></form>";
 
 pub mod request;
 pub mod response;
 pub mod http_status;
-//pub mod url;
+pub mod path;
 //pub mod router;
 
 fn server(listner: TcpListener){
