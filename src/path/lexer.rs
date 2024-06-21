@@ -1,5 +1,13 @@
+/** /path/lexer
+ * 
+ * @author Alex Malotky
+ */
 use std::io::{Error, ErrorKind};
 use regex::Regex;
+
+lazy_static! {
+    static ref CHAR_REGEX:Regex = Regex::new(r#"^\p{XID_Continue}$"#).unwrap();
+}
 
 #[derive(Debug, Copy, Clone)]
 pub enum TokenType {
@@ -90,7 +98,6 @@ pub fn lexer(string: String)->Result<Iter, Error>{
     let chars: Vec<char> = string.chars().collect();
     let mut tokens: Vec<LexToken> = Vec::new();
     let mut index = 0;
-    let id_char = Regex::new(r#"^\p{XID_Continue}$"#).unwrap();
 
     while index < chars.len(){
         let value = chars[index];
@@ -113,9 +120,9 @@ pub fn lexer(string: String)->Result<Iter, Error>{
         if value == ':' {
             let mut name:String = String::from("");
 
-            while id_char.is_match(chars[index+1].to_string().as_str()){
+            while CHAR_REGEX.is_match(&String::from(chars[index+1])){
                 index+=1;
-                name += String::from(chars[index]).as_str();
+                name += &String::from(chars[index]);
             }
 
             if name.is_empty() {
@@ -138,8 +145,8 @@ pub fn lexer(string: String)->Result<Iter, Error>{
 
             while index < chars.len() {
                 if chars[index] == '\\' {
-                    pattern += String::from(chars[index]).as_str();
-                    pattern += String::from(chars[index+1]).as_str();
+                    pattern += &String::from(chars[index]);
+                    pattern += &String::from(chars[index+1]);
                     index += 2;
                     continue;
                 }
@@ -157,7 +164,7 @@ pub fn lexer(string: String)->Result<Iter, Error>{
                     }
                 }
 
-                pattern += String::from(chars[index+1]).as_str();
+                pattern += &String::from(chars[index+1]);
                 index += 1;
             }
 
@@ -197,7 +204,7 @@ impl Iter {
     }
 
     pub fn try_consume(&mut self, token_type:TokenType)->Option<String>{
-        let token = self.peek();
+        let token = &self.tokens[self.index];
         if !token.token_type.eq(&token_type) {
             return None;
         }
@@ -245,7 +252,7 @@ impl Iter {
     pub fn text(&mut self)->String {
         let mut result = String::new();
         let mut value: Option<String> = self.next();
-        while (value.is_some()){
+        while value.is_some(){
             result += &value.unwrap();
             value = self.next();
         }
