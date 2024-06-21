@@ -2,7 +2,7 @@
  * 
  * @author Alex Malotky
  */
-use crate::path::{Encode, escape};
+use crate::path::escape;
 
 #[derive(Debug, Clone)]
 pub struct Key {
@@ -14,11 +14,12 @@ pub struct Key {
     pub separator: Option<String>
 }
 
-pub type KeyToRegex = Box<dyn FnMut(Key)->String>;
+pub type KeyToRegex<'a> = Box<dyn FnMut(Key)->String + 'a>;
 
 ///Key To Regex Generator
-pub fn key_to_regexp_gen(stringify:Encode, delimiter:String)->KeyToRegex {
+pub fn key_to_regexp_gen(stringify:&Box<dyn Fn(String)->String>, delimiter:String)->KeyToRegex {
     let segment_pattern = format!("`[^{}]+?", escape(delimiter));
+    let stringify = stringify.clone();
     return Box::new(move |key:Key|->String {
         let prefix = stringify(key.prefix);
         let suffix = stringify(key.suffix);
