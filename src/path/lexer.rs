@@ -90,7 +90,7 @@ impl TokenType {
 #[derive(Debug, Clone)]
 pub struct LexToken {
     token_type: TokenType,
-    index: usize,
+    _index: usize,
     value: String,
 }
 
@@ -104,7 +104,7 @@ pub fn lexer(string: String)->Result<Iter, Error>{
 
         match TokenType::from(value) {
             Some(token)=>{
-                tokens.push(LexToken { token_type: token, index, value: value.to_string() });
+                tokens.push(LexToken { token_type: token, _index:index, value: value.to_string() });
                 index+=1;
                 continue;
             }
@@ -112,7 +112,7 @@ pub fn lexer(string: String)->Result<Iter, Error>{
         }
 
         if value == '\\' {
-            tokens.push(LexToken { token_type: TokenType::Escaped, index, value: value.to_string() });
+            tokens.push(LexToken { token_type: TokenType::Escaped, _index:index, value: value.to_string() });
             index+=1;
             continue;
         }
@@ -129,7 +129,7 @@ pub fn lexer(string: String)->Result<Iter, Error>{
                 return Err(Error::new(ErrorKind::Other, format!("Missing parameter name at {}", index)));
             }
 
-            tokens.push(LexToken{token_type: TokenType::Name, index, value: name});
+            tokens.push(LexToken{token_type: TokenType::Name, _index:index, value: name});
             continue;
         }
 
@@ -175,16 +175,16 @@ pub fn lexer(string: String)->Result<Iter, Error>{
                 return Err(Error::new(ErrorKind::Other, format!("Missing pattern at {}", pos)));
             }
 
-            tokens.push(LexToken{token_type: TokenType::Pattern, index, value: pattern});
+            tokens.push(LexToken{token_type: TokenType::Pattern, _index:index, value: pattern});
             continue;
         }
 
-        tokens.push(LexToken{token_type: TokenType::Char, index, value: value.to_string()});
+        tokens.push(LexToken{token_type: TokenType::Char, _index:index, value: value.to_string()});
         index += 1;
         
     }
 
-    tokens.push(LexToken{ token_type: TokenType::End, index, value: String::new() });
+    tokens.push(LexToken{ token_type: TokenType::End, _index:index, value: String::new() });
 
     Ok(Iter::new(tokens))
 }
