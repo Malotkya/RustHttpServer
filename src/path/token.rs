@@ -99,7 +99,7 @@ impl CompileOptions {
     }
 }
 
-struct TokenData {
+pub struct TokenData {
     tokens: Vec<Token>, 
     delimiter: String
 }
