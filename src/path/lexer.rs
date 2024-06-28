@@ -89,9 +89,9 @@ impl TokenType {
 
 #[derive(Debug, Clone)]
 pub struct LexToken {
-    token_type: TokenType,
+    pub token_type: TokenType,
     _index: usize,
-    value: String,
+    pub value: String,
 }
 
 pub fn lexer(string: String)->Result<Iter, Error>{
