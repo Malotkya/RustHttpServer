@@ -118,9 +118,9 @@ pub fn lexer(string: String)->Result<Iter, Error>{
         }
 
         if value == ':' {
-            let mut name:String = String::from("");
+            let mut name:String = String::new();
 
-            while CHAR_REGEX.is_match(&String::from(chars[index+1])){
+            while CHAR_REGEX.is_match(&String::from(*chars.get(index+1).unwrap_or(&' '))){
                 index+=1;
                 name += &String::from(chars[index]);
             }
@@ -130,6 +130,7 @@ pub fn lexer(string: String)->Result<Iter, Error>{
             }
 
             tokens.push(LexToken{token_type: TokenType::Name, _index:index, value: name});
+            index +=1;
             continue;
         }
 
@@ -256,6 +257,7 @@ impl Iter {
             result += &value.unwrap();
             value = self.next();
         }
+        println!("Test:{}", result);
         return result;
     }
 }
