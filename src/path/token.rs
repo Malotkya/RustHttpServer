@@ -1,4 +1,4 @@
-use regex::{Regex, Error as RegexError, Captures, Replacer};
+use regex::{Regex, Error as RegexError};
 use crate::path::lexer::{ lexer, TokenType};
 use crate::path::key::{Key, key_to_regexp_gen};
 use crate::path::{Encode, no_encode, escape};
@@ -57,7 +57,6 @@ pub struct CompileOptions {
     pub prefixes: String,
     pub encode_path: Encode,
     pub sensitive: bool,
-    pub loose: bool,
     pub end: bool,
     pub start: bool,
     pub trailing: bool
@@ -69,7 +68,6 @@ impl CompileOptions {
             prefixes: DEFAULT_PREFIX.to_owned(),
             delimiter: DEFAULT_DELIMITER.to_owned(),
             encode_path: no_encode,
-            loose:  true,
             end: true,
             start: true,
             trailing: true,
@@ -77,12 +75,11 @@ impl CompileOptions {
         }
     }
 
-    pub fn new(prefixes:Option<String>, delimiter:Option<String>, encode_path: Option<Encode>, loose:Option<bool>, start: Option<bool>, end: Option<bool>, trailing: Option<bool>, sensitive: Option<bool>)->CompileOptions {
+    pub fn new(prefixes:Option<String>, delimiter:Option<String>, encode_path: Option<Encode>, start: Option<bool>, end: Option<bool>, trailing: Option<bool>, sensitive: Option<bool>)->CompileOptions {
         CompileOptions {
             prefixes: prefixes.unwrap_or(DEFAULT_PREFIX.to_owned()),
             delimiter: delimiter.unwrap_or(DEFAULT_DELIMITER.to_owned()),
             encode_path: encode_path.unwrap_or(no_encode),
-            loose: loose.unwrap_or(true),
             start: start.unwrap_or(true),
             end: end.unwrap_or(true),
             trailing: trailing.unwrap_or(true),
@@ -139,9 +136,9 @@ pub fn parse(str:String, opts: ParseOptions) -> Result<TokenData, Error> {
                     opts.encode_path,
                     opts.delimiter.clone(),
                     name,
-                    Some(format!("^{}]*`", opts.delimiter.clone())), //TODO: EscpaeURI/ EncodeURI(opts.delimiter)
-                    Some("".to_string()),
-                    Some("".to_string()),
+                    Some(format!("^{}]*", opts.delimiter.clone())), //TODO: EscpaeURI/ EncodeURI(opts.delimiter)
+                    Some(String::new()),
+                    Some(String::new()),
                     asterisk
                 )
             )
@@ -189,43 +186,8 @@ pub fn parse(str:String, opts: ParseOptions) -> Result<TokenData, Error> {
     return Ok(TokenData{tokens, delimiter: opts.delimiter})
 }
 
-struct LooseReplacer;
-
-impl Replacer for LooseReplacer {
-    fn replace_append(&mut self, cap: &Captures<'_>, output:&mut String){
-        let value = String::from(&cap["value"]);
-        let loose = String::from(&cap["loose"]);
-
-        if loose.is_empty() {
-            output.push_str(&value);
-        } else {
-            output.push_str(&format!("{}+", escape(value)))
-        }
-
-    }
-}
-
-fn to_stringify(loose:bool, delimiter:String)->Result<Box<dyn Fn(String)->String>, RegexError>{
-    if loose{
-        return Ok(Box::new(escape));
-    }
-
-    match Regex::new(&format!("(?<value>[^{}]+|(?<loose>.))", escape(delimiter))) {
-        Err(e)=>Err(e),
-        Ok(regex)=>{
-            Ok(Box::new(move |value:String|->String{
-                let mut value = value.clone();
-                regex.replace(&mut value, LooseReplacer);
-                return value;
-            }))
-        }
-    }
-}
-
 pub fn token_to_regexp(data:TokenData, keys:&mut Vec<Key>, options:CompileOptions)->Result<Regex, RegexError>{
-    let stringify = to_stringify(options.loose, options.delimiter).unwrap();
-
-    let mut key_to_regexp = key_to_regexp_gen(&stringify, data.delimiter.clone());
+    let mut key_to_regexp = key_to_regexp_gen(data.delimiter.clone());
     let mut pattern = String::new();
 
 
@@ -247,7 +209,7 @@ pub fn token_to_regexp(data:TokenData, keys:&mut Vec<Key>, options:CompileOption
     }
 
     if options.trailing {
-        pattern += &format!("(?:{})?", stringify(data.delimiter.clone()));
+        pattern += &format!("(?:{})?", escape(data.delimiter.clone()));
     }
 
     if options.end {

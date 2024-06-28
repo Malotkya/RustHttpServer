@@ -14,14 +14,14 @@ pub struct Key {
     pub separator: Option<String>
 }
 
-pub type KeyToRegex<'a> = Box<dyn FnMut(Key)->String + 'a>;
+pub type KeyToRegex = Box<dyn FnMut(Key)->String>;
 
 ///Key To Regex Generator
-pub fn key_to_regexp_gen(stringify:&Box<dyn Fn(String)->String>, delimiter:String)->KeyToRegex {
-    let segment_pattern = format!("`[^{}]+?", escape(delimiter));
+pub fn key_to_regexp_gen(delimiter:String)->KeyToRegex {
+    let segment_pattern = format!("[^{}]+?", escape(delimiter));
     return Box::new(move |key:Key|->String {
-        let prefix = stringify(key.prefix);
-        let suffix = stringify(key.suffix);
+        let prefix = escape(key.prefix);
+        let suffix = escape(key.suffix);
         let seperator = key.separator.unwrap_or(String::new());
 
         if !key.name.is_empty() {
@@ -37,13 +37,13 @@ pub fn key_to_regexp_gen(stringify:&Box<dyn Fn(String)->String>, delimiter:Strin
                 } else {
                     String::new()
                 };
-                let split = stringify(seperator);
+                let split = escape(seperator);
                 return format!("(?:{}((?:{})(?:{}(?:{}))*){}){}", prefix, pattern, split, pattern, suffix, modifier);
             } else {
                 return format!("(?:{}({}){}){}", prefix, pattern, suffix, key.modifier);
             }
         }
 
-        return format!("`(?:{}{}){}", prefix, suffix, key.modifier);
+        return format!("(?:{}{}){}", prefix, suffix, key.modifier);
     })
 }
