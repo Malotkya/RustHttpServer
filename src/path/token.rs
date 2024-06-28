@@ -2,7 +2,7 @@ use regex::{Regex, Error as RegexError};
 use crate::path::lexer::{ lexer, TokenType};
 use crate::path::key::{Key, key_to_regexp_gen};
 use crate::path::{Encode, no_encode, escape};
-use std::io::Error;
+use std::io::{Error, ErrorKind};
 
 pub enum Token {
     Key(Key),
@@ -179,7 +179,10 @@ pub fn parse(str:String, opts: ParseOptions) -> Result<TokenData, Error> {
             continue;
         }
 
-        it.consume(TokenType::End).unwrap();
+        if it.consume(TokenType::End).is_err() {
+            let next = it.peek();
+            return Err(Error::new(ErrorKind::UnexpectedEof, format!("Expected End instead got {}!", next.token_type.as_str())));
+        }
         break;
     }
 
