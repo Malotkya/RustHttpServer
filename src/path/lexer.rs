@@ -257,7 +257,6 @@ impl Iter {
             result += &value.unwrap();
             value = self.next();
         }
-        println!("Test:{}", result);
         return result;
     }
 }
