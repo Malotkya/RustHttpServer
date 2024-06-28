@@ -35,7 +35,6 @@ impl Token {
 
 pub struct ParseOptions {
     delimiter: String,
-    prefixes: String,
     encode_path: Encode
 }
 
@@ -45,18 +44,9 @@ lazy_static! {
 }
 
 impl ParseOptions {
-    pub fn default()->ParseOptions{
-        ParseOptions{
-            prefixes: DEFAULT_PREFIX.to_owned(),
-            delimiter: DEFAULT_DELIMITER.to_owned(),
-            encode_path: escape
-        }
-    }
-
     pub fn from(data:&CompileOptions)->ParseOptions {
         ParseOptions{
             delimiter: data.delimiter.clone(),
-            prefixes: data.prefixes.clone(),
             encode_path: data.encode_path.clone()
         }
     }
