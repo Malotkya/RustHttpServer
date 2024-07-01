@@ -82,6 +82,7 @@ impl Path {
         }
     }
 
+    //TODO: There may be a way to make this more efficient use only one match/iterator
     pub fn match_path(&self, path:&str)->Option<MatchResult> {
         let captures = self.regex.find(path);
 
@@ -104,14 +105,14 @@ impl Path {
         &self.keys
     }
 
-    pub fn update(&mut self, path: String)->Result<(), Error>{
-        let data = token::parse(&path, token::ParseOptions::from(&self.options))?;
+    pub fn update(&mut self, path: &String)->Result<(), Error>{
+        let data = token::parse(path, token::ParseOptions::from(&self.options))?;
         self.keys = Vec::new();
         match compile(data, &mut self.keys, &self.options) {
             Err(e)=>Err(Error::new(ErrorKind::Other, e)),
             Ok(regex)=>{
                 self.regex = regex;
-                self.value = path;
+                self.value = path.clone();
                 Ok(())
             }
         }
