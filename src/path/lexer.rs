@@ -2,6 +2,7 @@
  * 
  * @author Alex Malotky
  */
+use crate::path::token::{Token, TokenType};
 use std::io::{Error, ErrorKind};
 use regex::Regex;
 
@@ -9,94 +10,9 @@ lazy_static! {
     static ref CHAR_REGEX:Regex = Regex::new(r#"^\p{XID_Continue}$"#).unwrap();
 }
 
-#[derive(Debug, Copy, Clone)]
-pub enum TokenType {
-    Name = 0,
-    Pattern,
-    Char,
-    Escaped,
-    End,
-    OpenBracket,
-    ClosedBracket,
-    Asterisk,
-    Plus,
-    Exclimation,
-    SemiColon,
-    AtSymbol,
-    QuestionMark
-}
-
-impl TokenType {
-    pub fn as_str(&self) -> &'static str {
-        match self {
-            TokenType::Name => "NAME",
-            TokenType::Pattern => "PATTERN",
-            TokenType::Char => "CHAR",
-            TokenType::Escaped => "ESCAPED",
-            TokenType::End => "END",
-            TokenType::Exclimation => "!",
-            TokenType::SemiColon => ";",
-            TokenType::AtSymbol => "@",
-            TokenType::OpenBracket => "{",
-            TokenType::ClosedBracket => "}",
-            TokenType::Asterisk => "*",
-            TokenType::Plus => "+",
-            TokenType::QuestionMark => "?"
-        }
-    }
-
-    pub fn from(c: char) -> Option<TokenType> {
-        if c == '{' {
-            return Some(TokenType::OpenBracket);
-        }
-
-        if c == '}' {
-            return Some(TokenType::ClosedBracket);
-        }
-
-        if c == '*' {
-            return Some(TokenType::Asterisk);
-        }
-
-        if c == '+' {
-            return Some(TokenType::Plus);
-        }
-
-        if c == '?' {
-            return Some(TokenType::QuestionMark);
-        }
-
-        if c == '!' {
-            return Some(TokenType::Exclimation);
-        }
-
-        if c == '@' {
-            return Some(TokenType::AtSymbol);
-        }
-
-        if c == ';' {
-            return Some(TokenType::SemiColon);
-        }
-
-        return None;
-            
-    }
-
-    pub fn eq(&self, compare:&TokenType)->bool {
-        *self as u8 == *compare as u8
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct LexToken {
-    pub token_type: TokenType,
-    _index: usize,
-    pub value: String,
-}
-
-pub fn lexer(string: String)->Result<Iter, Error>{
+pub fn lexer(string: &String)->Result<Iter, Error>{
     let chars: Vec<char> = string.chars().collect();
-    let mut tokens: Vec<LexToken> = Vec::new();
+    let mut tokens: Vec<Token> = Vec::new();
     let mut index = 0;
 
     while index < chars.len(){
@@ -104,7 +20,7 @@ pub fn lexer(string: String)->Result<Iter, Error>{
 
         match TokenType::from(value) {
             Some(token)=>{
-                tokens.push(LexToken { token_type: token, _index:index, value: value.to_string() });
+                tokens.push(Token::new(token, index, value.to_string()));
                 index+=1;
                 continue;
             }
@@ -112,7 +28,7 @@ pub fn lexer(string: String)->Result<Iter, Error>{
         }
 
         if value == '\\' {
-            tokens.push(LexToken { token_type: TokenType::Escaped, _index:index, value: value.to_string() });
+            tokens.push(Token::new(TokenType::Escaped, index, value.to_string()));
             index+=1;
             continue;
         }
@@ -129,7 +45,7 @@ pub fn lexer(string: String)->Result<Iter, Error>{
                 return Err(Error::new(ErrorKind::Other, format!("Missing parameter name at {}", index)));
             }
 
-            tokens.push(LexToken{token_type: TokenType::Name, _index:index, value: name});
+            tokens.push(Token::new(TokenType::Name, index, name ));
             index +=1;
             continue;
         }
@@ -176,31 +92,31 @@ pub fn lexer(string: String)->Result<Iter, Error>{
                 return Err(Error::new(ErrorKind::Other, format!("Missing pattern at {}", pos)));
             }
 
-            tokens.push(LexToken{token_type: TokenType::Pattern, _index:index, value: pattern});
+            tokens.push(Token::new(TokenType::Pattern, index, pattern ));
             continue;
         }
 
-        tokens.push(LexToken{token_type: TokenType::Char, _index:index, value: value.to_string()});
+        tokens.push(Token::new(TokenType::Char, index, value.to_string()));
         index += 1;
         
     }
 
-    tokens.push(LexToken{ token_type: TokenType::End, _index:index, value: String::new() });
+    tokens.push(Token::new(TokenType::End, index, String::new()));
 
     Ok(Iter::new(tokens))
 }
 
 pub struct Iter {
     index: usize,
-    tokens: Vec<LexToken>
+    tokens: Vec<Token>
 }
 
 impl Iter {
-    pub fn new(tokens: Vec<LexToken>)-> Iter {
+    pub fn new(tokens: Vec<Token>)-> Iter {
         Iter { tokens, index: 0}
     }
 
-    pub fn peek(&self)->&LexToken{
+    pub fn peek(&self)->&Token{
         &self.tokens[self.index]
     }
 

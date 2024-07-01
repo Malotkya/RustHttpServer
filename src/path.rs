@@ -1,11 +1,16 @@
+/** /path
+ * 
+ * @author Alex Malotky
+ */
 use std::io::{Error, ErrorKind};
-use token::token_to_regexp;
+use segment::compile;
 use regex::{Regex, Captures, Replacer};
 use std::collections::HashMap;
 
 mod lexer;
 mod token;
 mod key;
+mod segment;
 
 lazy_static! {
     static ref ESCAPE_REGEX:Regex = Regex::new(r"([.+*?=^!:${}()\[\]|/\\])").unwrap();
@@ -49,20 +54,22 @@ impl KeyMapper<'_> {
 }
 
 
-pub type PathOptions = token::CompileOptions;
+pub type PathOptions = segment::CompileOptions;
 
 pub struct Path {
     keys: Vec<key::Key>,
-    regex: Regex
+    regex: Regex,
+    options: PathOptions,
+    value: String
 }
 
 impl Path {
     pub fn new(path: String, options: PathOptions)->Result<Path, Error>{
-        let data = token::parse(path, token::ParseOptions::from(&options))?;
+        let data = token::parse(&path, token::ParseOptions::from(&options))?;
         let mut keys = Vec::new();
-        match token_to_regexp(data, &mut keys, options) {
+        match compile(data, &mut keys, &options) {
             Ok(regex) => {
-                Ok(Path{ keys, regex })
+                Ok(Path{ keys, regex, options, value: path })
             },
             Err(e)=>Err(Error::new(ErrorKind::Other, e))
         }
@@ -77,5 +84,26 @@ impl Path {
 
     pub fn keys(&self)->&Vec<key::Key> {
         &self.keys
+    }
+
+    pub fn update(&mut self, path: String)->Result<(), Error>{
+        let data = token::parse(&path, token::ParseOptions::from(&self.options))?;
+        self.keys = Vec::new();
+        match compile(data, &mut self.keys, &self.options) {
+            Err(e)=>Err(Error::new(ErrorKind::Other, e)),
+            Ok(regex)=>{
+                self.regex = regex;
+                self.value = path;
+                Ok(())
+            }
+        }
+    }
+
+    pub fn regex_str(&self)->&str {
+        self.regex.as_str()
+    }
+
+    pub fn as_str(&self)->&str {
+        self.value.as_str()
     }
 }
