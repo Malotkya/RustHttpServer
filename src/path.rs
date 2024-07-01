@@ -29,6 +29,10 @@ fn escape(str:String)->String {
 }
 
 pub type Matches = HashMap<String, String>;
+pub struct MatchResult {
+    pub path: String,
+    pub matches: Matches
+}
 
 struct KeyMapper<'a> {
     keys: Vec<String>,
@@ -78,11 +82,22 @@ impl Path {
         }
     }
 
-    pub fn match_path(&self, path:&str)->Matches {
+    pub fn match_path(&self, path:&str)->Option<MatchResult> {
+        let captures = self.regex.find(path);
+
+        if captures.is_none() {
+            return None;
+        }
+        let url = captures.unwrap();
+
         let mut output:HashMap<String, String> = HashMap::new();
         let map = KeyMapper::new(&self.keys, &mut output);
         self.regex.replace_all(path, map);
-        return output;
+
+        return Some(MatchResult{
+            path: url.as_str().to_string(),
+            matches: output
+        });
     }
 
     pub fn keys(&self)->&Vec<key::Key> {
