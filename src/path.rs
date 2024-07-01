@@ -1,5 +1,8 @@
 /** /path
  * 
+ * Based on path-to-regex:
+ * https://github.com/pillarjs/path-to-regexp
+ * 
  * @author Alex Malotky
  */
 use std::io::{Error, ErrorKind};
