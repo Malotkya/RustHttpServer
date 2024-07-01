@@ -68,7 +68,7 @@ pub struct Request {
     method: RequestMethod,
     headers: HashMap<String, String>,
     path: String,
-    pub query: String,
+    query: String,
     search: HashMap<String, String>,
     pub body: BufReader<TcpStream>,
     params: HashMap<String, String>
@@ -147,6 +147,18 @@ impl Request {
 
     pub fn path(&self) -> &str {
         &self.path
+    }
+
+    pub fn query(&self) -> &str {
+        &self.query
+    }
+
+    pub fn set_query(&mut self, value:String) {
+        if value == "" {
+            self.query = String::from("/");
+        } else {
+            self.query = value;
+        }
     }
  
     pub fn method(&self) -> &RequestMethod {

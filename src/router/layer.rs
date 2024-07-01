@@ -40,11 +40,11 @@ impl SingleLayer {
 
 impl Layer for SingleLayer{
     fn _match(&self, req:&mut Request)->bool {
-        match self.path.match_path(&req.query) {
+        match self.path.match_path(req.query()) {
             None => false,
             Some(result) => {
                 req.set_param(result.matches);
-                req.query = req.query.replace(&result.path, "");
+                req.set_query(req.query().replace(&result.path, ""));
                 return true;
             }
         }

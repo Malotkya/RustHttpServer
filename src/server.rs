@@ -42,11 +42,11 @@ impl Server {
         let mut request = Request::new(stream).unwrap();
         let mut response = Response::new(clone);
 
-        let query = request.query.clone();
+        let query = String::from(request.query());
         for layer in layers {
             if layer._match(&mut request) {
                 layer.handle(&mut request, &mut response);
-                request.query = query.clone();
+                request.set_query(query.clone());
             }
         }
 

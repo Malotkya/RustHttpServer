@@ -54,25 +54,25 @@ impl Router {
 
 impl Layer for Router {
     fn _match(&self, req:&mut Request)->bool {
-        match self.path.match_path(&req.query) {
+        match self.path.match_path(req.query()) {
             None => false,
             Some(result) => {
                 req.set_param(result.matches);
-                req.query = req.query.replace(&result.path, "");
+                req.set_query(req.query().replace(&result.path, ""));
                 return true;
             }
         }
     }
 
     fn handle(&self, req: &mut Request, res: &mut Response){
-        let query = req.query.clone();
+        let query = String::from(req.query());
         for item in &self.list {
             if item.name.eq(req.method()) && item.layer._match(req) {
                 item.layer.handle(req, res);
-                req.query = query.clone();
+                req.set_query(query.clone());
             }
         }
-        req.query = query;
+        req.set_query(query);
     }
 
     fn path(&self) ->&str {
