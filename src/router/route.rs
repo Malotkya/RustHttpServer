@@ -7,11 +7,11 @@
 use crate::path::{Path, PathOptions};
 use crate::request::Request;
 use crate::response::Response;
-use crate::router::layer::{Layer, SingleLayer, Handler};
+use crate::router::layer::{Layer, SingleLayer, Handler, DynamicLayer};
 use std::io::Result;
 
 pub struct Route {
-    list: Vec<Box<dyn Layer>>,
+    list: Vec<Box<dyn Layer + Sync>>,
     path: Path
 }
 
@@ -20,6 +20,11 @@ impl Route {
         let path = Path::new(path, opts)?;
 
         Ok(Self{ path, list: Vec::new()})
+    }
+
+    pub fn dyn_new(path:String, opts: PathOptions)->Result<DynamicLayer> {
+        let route = Self::new(path, opts)?;
+        Ok(Box::new(route))
     }
 
     pub fn default_options()->PathOptions {
@@ -35,12 +40,11 @@ impl Route {
     }
 
     pub fn add_handler(&mut self, path:String, handler:Handler)->Result<()>{
-        let layer = SingleLayer::new(path, PathOptions::default(), handler)?;
-        self.add_layer(Box::new(layer));
+        self.add_layer(SingleLayer::dyn_new(path, PathOptions::default(), handler)?);
         Ok(())
     }
 
-    pub fn add_layer(&mut self, layer:Box<dyn Layer>){
+    pub fn add_layer(&mut self, layer:Box<dyn Layer + Sync>){
         self.list.push(layer);
     } 
 }

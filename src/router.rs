@@ -6,16 +6,16 @@
  */
 use crate::path::{Path, PathOptions};
 use crate::request::{Request, RequestMethod};
-use crate::router::layer::{Layer, SingleLayer, Handler};
+use crate::router::layer::{Layer, SingleLayer, Handler, DynamicLayer};
 use crate::response::Response;
 use std::io::Result;
 
-mod layer;
-mod route;
+pub mod layer;
+pub mod route;
 
 struct Method {
     pub name: RequestMethod,
-    pub layer: Box<dyn Layer>
+    pub layer: DynamicLayer
 }
 
 pub struct Router {
@@ -30,7 +30,12 @@ impl Router {
         Ok(Self{list: Vec::new(), path})
     }
 
-    fn add(&mut self, method: RequestMethod, layer:Box<dyn Layer>){
+    pub fn dyn_new(opts: PathOptions)->Result<DynamicLayer> {
+        let router = Self::new(opts)?;
+        Ok(Box::new(router))
+    }
+
+    fn add(&mut self, method: RequestMethod, layer:DynamicLayer){
         self.list.push(Method{
             name: method,
             layer
@@ -42,7 +47,7 @@ impl Router {
         self.add(method, Box::new(layer));
     }
 
-    pub fn add_layer(&mut self, layer:Box<dyn Layer>) {
+    pub fn add_layer(&mut self, layer:DynamicLayer) {
         self.add(RequestMethod::ALL, layer);
     }
 }
