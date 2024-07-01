@@ -9,7 +9,7 @@ use crate::request::Request;
 use crate::response::Response;
 use std::io::Result;
 
-pub type Handler = fn(req: &Request, res: &Response);
+pub type Handler = fn(req: &mut Request, res: &mut Response);
 
 pub trait Layer {
     fn _match(&self, req:&mut Request)->bool;
