@@ -12,7 +12,7 @@ pub struct Server {
 }
 
 impl Server {
-    pub fn new(port:u32)->Server{
+    pub const fn new(port:u32)->Server{
         Self{port, layers: Vec::new()}
     }
 
@@ -20,13 +20,13 @@ impl Server {
         self.layers.push(layer);
     }
 
-    pub fn start(&self, callback:&dyn Fn())->Result<()>{
+    pub fn start(&'static self, callback:&dyn Fn())->Result<()>{
         let listner = TcpListener::bind(format!("127.0.0.1:{}", self.port))?;
         callback();
 
         for connection in listner.incoming() {
             let stream = connection?;
-            let layers = self.layers.clone();
+            let layers = &self.layers;
 
             thread::spawn(||{
                 Server::handle(layers, stream);
