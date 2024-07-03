@@ -74,5 +74,9 @@ impl Response {
         return self.headers.get(&key);
     }
 
+    pub fn headers_sent(&self)->&bool {
+        &self.headers_sent
+    }
+
 
 }
