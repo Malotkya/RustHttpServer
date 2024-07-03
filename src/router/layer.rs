@@ -9,13 +9,13 @@ use crate::request::Request;
 use crate::response::Response;
 use std::io::Result;
 
-pub type Handler = fn(req: &mut Request, res: &mut Response);
+pub type Handler = fn(req: &mut Request, res: &mut Response)->Result<()>;
 
 pub trait Layer {
     fn _match(&self, req:&mut Request)->bool;
     fn path(&self)->&str;
     fn set_path(&mut self, value: &String)->Result<()>;
-    fn handle(&self, req:&mut Request, res: &mut Response);
+    fn handle(&self, req:&mut Request, res: &mut Response)->Result<()>;
 }
 
 pub struct SingleLayer {
@@ -50,8 +50,8 @@ impl Layer for SingleLayer{
         }
     }
 
-    fn handle(&self, req:&mut Request, res: &mut Response) {
-        (self.handler)(req, res);
+    fn handle(&self, req:&mut Request, res: &mut Response)->Result<()>{
+        (self.handler)(req, res)
     }
 
     fn path(&self) ->&str {

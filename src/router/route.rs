@@ -61,15 +61,16 @@ impl Layer for Route {
         }
     }
 
-    fn handle(&self, req: &mut Request, res: &mut Response){
+    fn handle(&self, req: &mut Request, res: &mut Response)->Result<()>{
         let query = String::from(req.query());
         for layer in &self.list {
             if layer._match(req) {
-                layer.handle(req, res);
+                layer.handle(req, res)?;
                 req.set_query(query.clone());
             }
         }
         req.set_query(query);
+        Ok(())
     }
 
     fn path(&self) ->&str {

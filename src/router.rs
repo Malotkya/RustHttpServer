@@ -64,15 +64,16 @@ impl Layer for Router {
         }
     }
 
-    fn handle(&self, req: &mut Request, res: &mut Response){
+    fn handle(&self, req: &mut Request, res: &mut Response)->Result<()>{
         let query = String::from(req.query());
         for item in &self.list {
             if item.name.eq(req.method()) && item.layer._match(req) {
-                item.layer.handle(req, res);
+                item.layer.handle(req, res)?;
                 req.set_query(query.clone());
             }
         }
         req.set_query(query);
+        Ok(())
     }
 
     fn path(&self) ->&str {
