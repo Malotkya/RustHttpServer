@@ -205,7 +205,7 @@ pub fn parse(str:&String, opts: ParseOptions) -> Result<RegexData, Error> {
 
         if it.consume(TokenType::End).is_err() {
             let next = it.peek();
-            return Err(Error::new(ErrorKind::UnexpectedEof, format!("Expected End instead got {}!", next.token_type.as_str())));
+            return Err(Error::new(ErrorKind::InvalidInput, format!("Expected End instead got {}!", next.token_type.as_str())));
         }
         break;
     }

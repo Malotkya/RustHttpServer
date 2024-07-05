@@ -42,7 +42,7 @@ pub fn lexer(string: &String)->Result<Iter, Error>{
             }
 
             if name.is_empty() {
-                return Err(Error::new(ErrorKind::Other, format!("Missing parameter name at {}", index)));
+                return Err(Error::new(ErrorKind::InvalidInput, format!("Missing parameter name at {}", index)));
             }
 
             tokens.push(Token::new(TokenType::Name, index, name ));
@@ -57,7 +57,7 @@ pub fn lexer(string: &String)->Result<Iter, Error>{
             let mut pattern:String = String::new();
 
             if chars[index] == '?'{
-                return Err(Error::new(ErrorKind::Other, format!("Pattern cannot start with '?' at {}", index)));
+                return Err(Error::new(ErrorKind::InvalidInput, format!("Pattern cannot start with '?' at {}", index)));
             }
 
             while index < chars.len() {
@@ -76,7 +76,7 @@ pub fn lexer(string: &String)->Result<Iter, Error>{
                     } else if chars[index] == '(' {
                         count += 1;
                         if chars[index+1] != '?' {
-                            return Err(Error::new(ErrorKind::Other, format!("Capturing groups are not allowed at {}", index)));
+                            return Err(Error::new(ErrorKind::InvalidInput, format!("Capturing groups are not allowed at {}", index)));
                         }
                     }
                 }
@@ -86,10 +86,10 @@ pub fn lexer(string: &String)->Result<Iter, Error>{
             }
 
             if count != 0 {
-                return Err(Error::new(ErrorKind::Other, format!("Unbalanced pattern at {}", pos)));
+                return Err(Error::new(ErrorKind::InvalidInput, format!("Unbalanced pattern at {}", pos)));
             }
             if pattern.is_empty() {
-                return Err(Error::new(ErrorKind::Other, format!("Missing pattern at {}", pos)));
+                return Err(Error::new(ErrorKind::InvalidInput, format!("Missing pattern at {}", pos)));
             }
 
             tokens.push(Token::new(TokenType::Pattern, index, pattern ));
