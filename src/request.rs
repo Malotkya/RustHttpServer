@@ -165,7 +165,7 @@ impl Request {
         self.method.clone()
     }
 
-    pub fn header(&self, key:&str) -> &str {
+    pub fn get_header(&self, key:&str) -> &str {
         &(&self.headers)[key]
     }
 
