@@ -61,21 +61,21 @@ impl Response {
         return self.stream.write(data);
     }
 
-    pub fn set_header(&mut self, key: String, value: String)->Result<(), Error>{
+    pub fn set_header(&mut self, key: &str, value: &str)->Result<(), Error>{
         if self.headers_sent {
             return Err(Error::new(ErrorKind::PermissionDenied, "Headers already sent!"))
         }
 
-        self.headers.insert(key, value);
+        self.headers.insert(key.to_string(), value.to_string());
         return Ok(());
     }
 
-    pub fn get_header(&self, key: String)->Option<&String>{
-        return self.headers.get(&key);
+    pub fn get_header(&self, key:&str)->&str{
+        &(&self.headers)[key]
     }
 
-    pub fn headers_sent(&self)->&bool {
-        &self.headers_sent
+    pub fn headers_sent(&self)->bool {
+        self.headers_sent
     }
 
 
