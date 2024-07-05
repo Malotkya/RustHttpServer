@@ -17,9 +17,7 @@ fn main(){
 
     let mut rt = router::Router::new("/", path::PathOptions::default()).unwrap();
     rt.add_method(request::RequestMethod::ALL, |_req:&mut request::Request, res:&mut response::Response|->Status{
-        res.status(200)?;
-        res.set_header(String::from("Content-Type"), String::from("text/html"))?;
-        res.write(DATA.as_bytes())?;
+        res.html(DATA)?;
         next()
     });
 
