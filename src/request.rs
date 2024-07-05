@@ -6,7 +6,7 @@ use std::io::{prelude::*, BufReader, Error, ErrorKind};
 use std::net::TcpStream;
 use std::collections::HashMap;
 
-#[derive(PartialEq)]
+#[derive(PartialEq, Clone)]
 pub enum RequestMethod {
     GET,
     POST,
@@ -70,7 +70,7 @@ pub struct Request {
     path: String,
     query: String,
     search: HashMap<String, String>,
-    pub body: BufReader<TcpStream>,
+    body: BufReader<TcpStream>,
     params: HashMap<String, String>
 }
 
@@ -161,8 +161,8 @@ impl Request {
         }
     }
  
-    pub fn method(&self) -> &RequestMethod {
-        &self.method
+    pub fn method(&self) -> RequestMethod {
+        self.method.clone()
     }
 
     pub fn header(&self, key:&str) -> &str {
@@ -175,5 +175,9 @@ impl Request {
 
     pub fn param(&self) -> &HashMap<String, String> {
         &self.params
+    }
+
+    pub fn body(&self)->&[u8] {
+        self.body.buffer()
     }
 }
