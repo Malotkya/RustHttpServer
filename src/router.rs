@@ -26,14 +26,14 @@ pub struct Router {
 }
 
 impl Router {
-    pub fn new(opts: PathOptions)->Result<Router> {
-        let path = Path::new(String::from("/"), opts)?;
+    pub fn new(path: &str, opts: PathOptions)->Result<Router> {
+        let path = Path::new(path, opts)?;
 
         Ok(Self{list: Vec::new(), path})
     }
 
-    pub fn dyn_new(opts: PathOptions)->Result<DynamicLayer> {
-        let router = Self::new(opts)?;
+    pub fn dyn_new(path: &str, opts: PathOptions)->Result<DynamicLayer> {
+        let router = Self::new(path, opts)?;
         Ok(Box::new(router))
     }
 
@@ -45,7 +45,7 @@ impl Router {
     }
 
     pub fn add_method(&mut self, method: RequestMethod, handler:Handler){
-        let layer = SingleLayer::new(String::from("/"), PathOptions::default(), handler).unwrap();
+        let layer = SingleLayer::new("/", PathOptions::default(), handler).unwrap();
         self.add(method, Box::new(layer));
     }
 
