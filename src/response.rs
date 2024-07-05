@@ -78,5 +78,13 @@ impl Response {
         self.headers_sent
     }
 
+    pub fn text(&mut self, string:&str)->Result<usize, Error>{
+        self.set_header("Content-Type", "text/plain")?;
+        return self.write(string.as_bytes());
+    }
 
+    pub fn html(&mut self, content: &str)->Result<usize, Error>{
+        self.set_header("Content-Type", "text/html")?;
+        return self.write(content.as_bytes());
+    }
 }
