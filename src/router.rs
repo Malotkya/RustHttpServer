@@ -8,10 +8,12 @@ use crate::path::{Path, PathOptions};
 use crate::request::{Request, RequestMethod};
 use crate::router::layer::{Layer, SingleLayer, Handler, DynamicLayer};
 use crate::response::Response;
+use crate::router::status::{next, error, Status};
 use std::io::Result;
 
 pub mod layer;
 pub mod route;
+pub mod status;
 
 struct Method {
     pub name: RequestMethod,
@@ -64,16 +66,19 @@ impl Layer for Router {
         }
     }
 
-    fn handle(&self, req: &mut Request, res: &mut Response)->Result<()>{
+    fn handle(&self, req: &mut Request, res: &mut Response)->Status{
         let query = String::from(req.query());
         for item in &self.list {
             if item.name.eq(req.method()) && item.layer._match(req) {
-                item.layer.handle(req, res)?;
+                let err = item.layer.handle(req, res)?;
+                if err.is_some() {
+                    return error(err.unwrap())
+                }
                 req.set_query(query.clone());
             }
         }
         req.set_query(query);
-        Ok(())
+        next()
     }
 
     fn path(&self) ->&str {

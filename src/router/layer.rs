@@ -7,15 +7,16 @@
 use crate::path::{Path, PathOptions};
 use crate::request::Request;
 use crate::response::Response;
+use crate::router::status::Status;
 use std::io::Result;
 
-pub type Handler = fn(req: &mut Request, res: &mut Response)->Result<()>;
+pub type Handler = fn(req: &mut Request, res: &mut Response)->Status;
 
 pub trait Layer {
     fn _match(&self, req:&mut Request)->bool;
     fn path(&self)->&str;
     fn set_path(&mut self, value: &String)->Result<()>;
-    fn handle(&self, req:&mut Request, res: &mut Response)->Result<()>;
+    fn handle(&self, req:&mut Request, res: &mut Response)->Status;
 }
 
 pub struct SingleLayer {
@@ -50,7 +51,7 @@ impl Layer for SingleLayer{
         }
     }
 
-    fn handle(&self, req:&mut Request, res: &mut Response)->Result<()>{
+    fn handle(&self, req:&mut Request, res: &mut Response)->Status{
         (self.handler)(req, res)
     }
 
