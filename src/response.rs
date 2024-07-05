@@ -5,7 +5,7 @@
 use std::collections::HashMap;
 use std::net::TcpStream;
 use std::io::{Write, Error, ErrorKind};
-use crate::http_status;
+use crate::error::HttpErrorKind;
 
 /// Http Response
 #[allow(dead_code)]
@@ -39,7 +39,7 @@ impl Response {
         self.stream.write(format!(
             "HTTP/1.1 {} {}\r\n{}\r\n\r\n",
             &self.status,
-            http_status::get_message(self.status), 
+            HttpErrorKind::from(self.status).as_str(), 
             buffer
         ).as_bytes()).unwrap();
     }
