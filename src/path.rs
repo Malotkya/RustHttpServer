@@ -71,12 +71,12 @@ pub struct Path {
 }
 
 impl Path {
-    pub fn new(path: String, options: PathOptions)->Result<Path, Error>{
-        let data = token::parse(&path, token::ParseOptions::from(&options))?;
+    pub fn new(path: &str, options: PathOptions)->Result<Path, Error>{
+        let data = token::parse(path, token::ParseOptions::from(&options))?;
         let mut keys = Vec::new();
         match compile(data, &mut keys, &options) {
             Ok(regex) => {
-                Ok(Path{ keys, regex, options, value: path })
+                Ok(Path{ keys, regex, options, value: path.to_string() })
             },
             Err(e)=>Err(Error::new(ErrorKind::Other, e))
         }

@@ -117,7 +117,7 @@ impl Token{
     }
 }
 
-pub fn parse(str:&String, opts: ParseOptions) -> Result<RegexData, Error> {
+pub fn parse(str:&str, opts: ParseOptions) -> Result<RegexData, Error> {
     let mut tokens: Vec<Segment> = Vec::new();
     let mut key = 0;
 

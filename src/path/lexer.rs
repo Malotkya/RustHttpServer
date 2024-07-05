@@ -10,7 +10,7 @@ lazy_static! {
     static ref CHAR_REGEX:Regex = Regex::new(r#"^\p{XID_Continue}$"#).unwrap();
 }
 
-pub fn lexer(string: &String)->Result<Iter, Error>{
+pub fn lexer(string: &str)->Result<Iter, Error>{
     let chars: Vec<char> = string.chars().collect();
     let mut tokens: Vec<Token> = Vec::new();
     let mut index = 0;
