@@ -9,11 +9,12 @@ pub mod router;
 pub mod server;
 pub mod error;
 
-static mut SERVER:server::Server = server::Server::new(5000);
 const DATA: &str= "<form method='POST'><input name='textbox'/><br/><input type='radio' name='button' value='hello world' /><br/><button>Submit</button></form>";
 
-
 fn main(){
+
+    let mut s = server::Server::new(5000);
+
     let mut rt = router::Router::new(path::PathOptions::default()).unwrap();
     rt.add_method(request::RequestMethod::ALL, |_req:&mut request::Request, res:&mut response::Response|->Status{
         res.status(200)?;
@@ -22,12 +23,9 @@ fn main(){
         next()
     });
 
-    unsafe { 
-        SERVER.add(Box::new(rt));
+    s.add(Box::new(rt));
 
-        SERVER.start(&||{
-            println!("Ready on port 5000!");
-        }).unwrap();
-    
-    };
+    s.start(&||{
+        println!("Ready on port 5000!");
+    }).unwrap();
 }
