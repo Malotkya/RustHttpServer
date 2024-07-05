@@ -1,8 +1,9 @@
 use crate::router::layer::DynamicLayer;
 use crate::request::Request;
 use crate::response::Response;
+use crate::error::{HttpError, HttpErrorKind};
 use std::net::{TcpListener, TcpStream};
-use std::io::{Result, Error, ErrorKind};
+use std::io::Result;
 use std::thread;
 
 pub struct Server {
@@ -41,14 +42,14 @@ impl Server {
 
         let mut request = Request::new(stream).unwrap();
         let mut response = Response::new(clone);
-        let mut error: Option<Error> = None;
+        let mut error: Option<HttpError<String>> = None;
 
         let query = String::from(request.query());
         for layer in layers {
             if layer._match(&mut request) {
                 match layer.handle(&mut request, &mut response) {  
                     Err(e) => {
-                        error = Some(e);
+                        error = Some(HttpError::new(HttpErrorKind::InternalServerError, format!("{}", e)));
                         break;
                     }
                     Ok(_) => request.set_query(query.clone())
@@ -58,7 +59,7 @@ impl Server {
 
         //404 and other error handling
         if !response.headers_sent() {
-            error = Some(Error::new(ErrorKind::NotFound, "Not Found"));
+            error = Some(HttpError::new(HttpErrorKind::NotFound, String::new()));
         }
 
         if error.is_some() {
