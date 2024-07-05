@@ -27,13 +27,13 @@ pub struct SingleLayer {
 pub type DynamicLayer = Box<dyn Layer + Sync>;
 
 impl SingleLayer {
-    pub fn new(path:String, options: PathOptions, handler:Handler) -> Result<SingleLayer>{
+    pub fn new(path:&str, options: PathOptions, handler:Handler) -> Result<SingleLayer>{
         let path = Path::new(path, options)?;
 
         return Ok(Self{path, handler});
     }
 
-    pub fn dyn_new(path:String, options: PathOptions, handler:Handler)->Result<DynamicLayer> {
+    pub fn dyn_new(path:&str, options: PathOptions, handler:Handler)->Result<DynamicLayer> {
         let layer = Self::new(path, options, handler)?;
         Ok(Box::new(layer))
     }

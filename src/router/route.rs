@@ -17,13 +17,13 @@ pub struct Route {
 }
 
 impl Route {
-    pub fn new(path:String, opts: PathOptions)->Result<Route> {
+    pub fn new(path:&str, opts: PathOptions)->Result<Route> {
         let path = Path::new(path, opts)?;
 
         Ok(Self{ path, list: Vec::new()})
     }
 
-    pub fn dyn_new(path:String, opts: PathOptions)->Result<DynamicLayer> {
+    pub fn dyn_new(path:&str, opts: PathOptions)->Result<DynamicLayer> {
         let route = Self::new(path, opts)?;
         Ok(Box::new(route))
     }
@@ -40,7 +40,7 @@ impl Route {
         )
     }
 
-    pub fn add_handler(&mut self, path:String, handler:Handler)->Result<()>{
+    pub fn add_handler(&mut self, path:&str, handler:Handler)->Result<()>{
         self.add_layer(SingleLayer::dyn_new(path, PathOptions::default(), handler)?);
         Ok(())
     }
