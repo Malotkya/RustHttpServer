@@ -69,7 +69,7 @@ impl Layer for Router {
     fn handle(&self, req: &mut Request, res: &mut Response)->Status{
         let query = String::from(req.query());
         for item in &self.list {
-            if item.name.eq(req.method()) && item.layer._match(req) {
+            if item.name.eq(&req.method()) && item.layer._match(req) {
                 let err = item.layer.handle(req, res)?;
                 if err.is_some() {
                     return error(err.unwrap())
