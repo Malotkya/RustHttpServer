@@ -1,8 +1,9 @@
 [package]
-name = "hello-rust"
+name = "rust_http_server"
 version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+path_regex_macro = { path = "path_regex_macro" }
 lazy_static = "1.4.0"
 regex = "1.10.5"
