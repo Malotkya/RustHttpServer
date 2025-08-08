@@ -1,7 +1,6 @@
 /// https://github.com/pillarjs/path-to-regexp/blob/master/src/index.ts#L503
 use regex::{Regex, RegexBuilder};
 use std::collections::VecDeque;
-use urlencoding::encode;
 
 //const PREFIX:&'static str    = "./";
 const DELIMITER:&'static str = "/";
@@ -15,7 +14,7 @@ lazy_static::lazy_static! {
     static ref ID_CONTINUE:Regex = RegexBuilder::new(r#"^[$\u200c\u200d\p{ID_Continue}]$"#)
             .case_insensitive(true).build().unwrap();
 
-    static ref ESCAPE:Regex = RegexBuilder::new(r#"[.+*?^${}()\[\]|/\\]"#)
+    static ref ESCAPE:Regex = RegexBuilder::new(r#"([.+*?^${}()\[\]|\\])"#)
             .build().unwrap();
 }
 
@@ -326,7 +325,7 @@ pub(crate) fn flatten(segments:&mut VecDeque<Segment>) -> VecDeque<Flattened> {
 }
 
 fn escape<'a>(str: &'a str) -> String {
-    return ESCAPE.replace_all(str, "\\$&").to_string()
+    return ESCAPE.replace_all(str, "\\$1").to_string()
 }
 
 fn negate<'a>(str: &'a str) -> String {
@@ -342,7 +341,7 @@ fn negate<'a>(str: &'a str) -> String {
 }
 
 //toRegExp
-pub fn compile(path:&String, trailing:bool, end:bool) -> (String, Vec<String>){
+pub fn compile<'a>(path:&'a str, trailing:bool, end:bool) -> (String, Vec<String>){
     let mut iter = lexer(path);
     let mut tokens = iter.parse(TokenType::End);
     let mut segments = flatten(&mut tokens);
@@ -362,7 +361,7 @@ pub fn compile(path:&String, trailing:bool, end:bool) -> (String, Vec<String>){
             },
             Flattened::WildCard(value) => {
                 if !is_safe_segment_param && backtrack.is_empty() {
-                    panic!("Missing text after '${}'!", value)
+                    panic!("Missing text after '{}'!", value)
                 }
                 pattern += "([\\s\\S]+)";
                 keys.push(value);
@@ -370,9 +369,9 @@ pub fn compile(path:&String, trailing:bool, end:bool) -> (String, Vec<String>){
             },
             Flattened::Parameter(value) => {
                 if !is_safe_segment_param && backtrack.is_empty() {
-                    panic!("Missing text after '${}'!", value)
+                    panic!("Missing text after '{}'!", value)
                 }
-                pattern += &format!("({})+",
+                pattern += &format!("({}+)",
                     negate( if is_safe_segment_param {
                         EMPTY_STRING
                     } else {
@@ -388,13 +387,13 @@ pub fn compile(path:&String, trailing:bool, end:bool) -> (String, Vec<String>){
     pattern = format!("^(?:{})", pattern);
 
     if trailing {
-        pattern += &format!("(?:${}$)?", ESCAPED_DELIMITER);
+        pattern += &format!("(?:{})?", ESCAPED_DELIMITER);
     }
 
     if end {
         pattern += &String::from("$");
     } else {
-        pattern += &format!("(?={}|$)", ESCAPED_DELIMITER);
+        //pattern += &format!("(?={}|$)", ESCAPED_DELIMITER);
     }
 
     (
