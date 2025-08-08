@@ -87,15 +87,17 @@ pub(crate) fn lexer<'a>(str: &'a str)->Iter {
         let mut char = chars[i].to_string();
         if ID_START.is_match(&char) {
             value += &char;
-            
-            loop {
-                i += 1;
-                char = chars[i].to_string();
+             
+            i+=1;
+            while let Some(next) = chars.get(i) {
+                let char = next.to_string();
+                
                 if !ID_CONTINUE.is_match(&char) {
                     break;
                 }
 
                 value += &char;
+                i+=1;
             }
         } else if char == "\"" {
             let mut pos = i;
