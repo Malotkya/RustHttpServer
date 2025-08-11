@@ -1,6 +1,8 @@
 /// https://github.com/pillarjs/path-to-regexp/blob/master/src/index.ts#L503
 use regex::{Regex, RegexBuilder};
 use std::collections::VecDeque;
+use proc_macro2::{TokenStream, Span};
+use quote::quote;
 
 //const PREFIX:&'static str    = "./";
 const DELIMITER:&'static str = "/";
@@ -400,4 +402,34 @@ pub fn compile<'a>(path:&'a str, trailing:bool, end:bool) -> (String, Vec<String
         pattern,
         keys
     )
+}
+
+pub fn build_path_types(name:&syn::Ident, keys:&Vec<String>) -> (TokenStream, usize) {
+    let mut fields = quote!();
+    let mut constructor = quote!();
+
+    let length = keys.len();
+    for i in 0..length {
+        let field = syn::Ident::new(&keys[i], Span::call_site());
+
+        fields.extend(quote!{
+            pub #field: &'a str,
+        });
+
+        constructor.extend(quote!{
+            #field: list[#i],
+        });
+    }
+
+    (quote! {
+        pub struct #name<'a> {
+            #fields
+        }
+
+        impl<'a> #name<'a> {
+            fn new(list: [&'a str; #length]) -> Self {
+                Self { #constructor }
+            }
+        }
+    }, length )
 }
