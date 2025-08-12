@@ -1,5 +1,5 @@
 [package]
-name = "path_regex_macro"
+name = "http_macro"
 version = "0.1.0"
 edition = "2024"
 
@@ -13,4 +13,3 @@ proc-macro2 = "1.0.95"
 quote = "1.0.40"
 regex = "1.11.1"
 syn = "2.0.104"
-urlencoding = "2.1.3"
