@@ -4,7 +4,6 @@
  * 
  * @author Alex Malotky
  */
-use crate::path::{Path, PathOptions};
 use crate::request::{Request, RequestMethod};
 use crate::router::layer::{Layer, SingleLayer, Handler, DynamicLayer};
 use crate::response::Response;
@@ -13,16 +12,10 @@ use std::io::Result;
 
 pub mod layer;
 pub mod route;
-pub mod status;
+pub mod status; 
 
-struct Method {
-    pub name: RequestMethod,
-    pub layer: DynamicLayer
-}
-
-pub struct Router {
-    list: Vec<Method>,
-    path: Path
+pub trait Router {
+    fn handle<'a>(&self, url:&'a str) -> Option<()>;
 }
 
 impl Router {

@@ -6,28 +6,6 @@ pub struct HttpError{
     kind: HttpErrorKind
 }
 
-impl HttpError{
-    pub fn new<E:fmt::Display>(kind: HttpErrorKind, error: E)-> HttpError{
-        Self{ kind, message: format!("{}", error) }
-    }
-
-    pub fn message(&self)->&str {
-        if self.message.len() == 0 {
-            return self.kind.as_str();
-        }
-
-        &self.message
-    }
-
-    pub fn code(&self)->u16 {
-        self.kind.code()
-    }
-
-    pub fn kind(&self)->&HttpErrorKind {
-        &self.kind
-    }
-}
-
 #[derive(Debug, Clone)]
 pub enum HttpErrorKind {
     //Information Responses
