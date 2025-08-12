@@ -1,0 +1,110 @@
+
+use crate::headers::types::ContentRangeType;
+
+use super::value::*;
+
+pub enum HeaderKey<'a> {
+    Accept(AcceptValue<'a>),
+    AcceptCharset(AcceptCharsetValue<'a>),
+    AcceptEncoding(AcceptEncodingValue<'a>),
+    AcceptLanguage(AcceptLanguageValue<'a>),
+    AcceptRanges(AcceptRangesValue<'a>),
+    Age(AgeValue<'a>),
+    Allow(AllowValue<'a>),
+    Authorization(AuthorizationValue<'a>),
+    CacheControl(CacheControlValue<'a>),
+    Connection(ConnectionValue<'a>),
+    ContentEncoding(ContentEncodingValue<'a>),
+    ContentLanguage(ContentLanguageValue<'a>),
+    ContentLength(HeaderValue<'a>),
+    ContentLocation(UriValue<'a>),
+    ContentRange(ContentRangeType<'a>),
+    ConetntType(HeaderValue<'a>),
+    ContentDate(HeaderValue<'a>),
+    ETag(HeaderValue<'a>),
+    Expect(ExpectValue<'a>),
+    Expires(HeaderValue<'a>),
+    From(HeaderValue<'a>),
+    Host(LocationValue<'a>),
+    IfMatch(IfMatchValue<'a>),
+    IfModifiedSince(HeaderValue<'a>),
+    IfNoneMatch(IfMatchValue<'a>),
+    IfRange(HeaderValue<'a>),
+    IfUnmodifiedSince(HeaderValue<'a>),
+    LastModified(HeaderValue<'a>),
+    Location(LocationValue<'a>),
+    MaxForward(HeaderValue<'a>),
+    Pragma(PrigmaDirectiveValue<'a>),
+    ProxyAuthenticat(HeaderValue<'a>),
+    ProxyAuthorization(AuthorizationValue<'a>),
+    Referer(UriValue<'a>),
+    RetryAfter(HeaderValue<'a>),
+    Server(HeaderValue<'a>),
+    TE(HeaderValue<'a>),
+    Trailer(HeaderValue<'a>),
+    TransferEncoding(HeaderValue<'a>),
+    Upgrade(ListHeaderValue<'a>),
+    UserAgent(HeaderValue<'a>),
+    Vary(HeaderValue<'a>),
+    Via(HeaderValue<'a>),
+    Warning(HeaderValue<'a>),
+    WWWAuthenticat(ListHeaderValue<'a>)
+}
+
+impl<'a> Into<u8> for &'a HeaderKey<'a> {
+    fn into(self: &'a HeaderKey<'a>) -> u8 {
+        match *self {
+            HeaderKey::Accept(_)             =>  0,
+            HeaderKey::AcceptCharset(_)      =>  1,
+            HeaderKey::AcceptEncoding(_)     =>  2,
+            HeaderKey::AcceptLanguage(_)     =>  3,
+            HeaderKey::AcceptRanges(_)       =>  4,
+            HeaderKey::Age(_)                =>  5,
+            HeaderKey::Allow(_)              =>  6,
+            HeaderKey::Authorization(_)      =>  7,
+            HeaderKey::CacheControl(_)       =>  8,
+            HeaderKey::Connection(_)         =>  9,
+            HeaderKey::ContentEncoding(_)    => 10,
+            HeaderKey::ContentLanguage(_)    => 11,
+            HeaderKey::ContentLength(_)      => 12,
+            HeaderKey::ContentLocation(_)    => 13,
+            HeaderKey::ContentRange(_)       => 14,
+            HeaderKey::ConetntType(_)        => 15,
+            HeaderKey::ContentDate(_)        => 16,
+            HeaderKey::ETag(_)               => 17,
+            HeaderKey::Expect(_)             => 18,
+            HeaderKey::Expires(_)            => 19,
+            HeaderKey::From(_)               => 20,
+            HeaderKey::Host(_)               => 21,
+            HeaderKey::Trailer(_)            => 22,
+            HeaderKey::IfMatch(_)            => 23,
+            HeaderKey::IfModifiedSince(_)    => 24,
+            HeaderKey::IfNoneMatch(_)        => 25,
+            HeaderKey::IfRange(_)            => 26,
+            HeaderKey::IfUnmodifiedSince(_)  => 27,
+            HeaderKey::LastModified(_)       => 28,
+            HeaderKey::Location(_)           => 29,
+            HeaderKey::MaxForward(_)         => 30,
+            HeaderKey::Pragma(_)             => 31,
+            HeaderKey::ProxyAuthenticat(_)   => 32,
+            HeaderKey::ProxyAuthorization(_) => 33,
+            HeaderKey::Referer(_)            => 34,
+            HeaderKey::RetryAfter(_)         => 35,
+            HeaderKey::Server(_)             => 36,
+            HeaderKey::TE(_)                 => 37,
+            HeaderKey::TransferEncoding(_)   => 38,
+            HeaderKey::Upgrade(_)            => 39,
+            HeaderKey::UserAgent(_)          => 40,
+            HeaderKey::Vary(_)               => 41,
+            HeaderKey::Via(_)                => 42,
+            HeaderKey::Warning(_)            => 43,
+            HeaderKey::WWWAuthenticat(_)     => 44,
+        }
+    }
+}
+
+impl<'a> PartialEq for HeaderKey<'a> {
+    fn eq(&self, rhs:&Self) -> bool {
+        Into::<u8>::into(self) == rhs.into()
+    }
+}
