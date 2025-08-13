@@ -31,11 +31,11 @@ pub fn generate_header_name_enums(input:HeaderInput) -> proc_macro2::TokenStream
     let mut name_values = quote::quote!();
     let mut number_values = quote::quote!();
 
-    let mut i: usize = 1;
+    let mut i: u8 = 1;
     for (name, literal) in input.0 {
-        enum_values.extend(quote::quote!( #name ));
+        enum_values.extend(quote::quote!( #name, ));
         name_values.extend(quote::quote!( Self::#name => #literal, ));
-        number_values.extend(quote::quote!( Self::#name => #i, ));
+        number_values.extend(quote::quote!( HeaderName::#name => #i, ));
         i += 1
     }
     
@@ -56,8 +56,8 @@ pub fn generate_header_name_enums(input:HeaderInput) -> proc_macro2::TokenStream
 
         impl<'a> Into<u8> for &'a HeaderName<'a> {
             fn into(self) -> u8 {
-                match self {
-                    Self::CustomHeaderName => 0,
+                match *self {
+                    HeaderName::CustomHeaderName(_) => 0,
                     #number_values
                 }
             }

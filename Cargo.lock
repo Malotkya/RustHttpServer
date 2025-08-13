@@ -143,6 +143,7 @@ name = "http"
 version = "0.1.0"
 dependencies = [
  "chrono",
+ "http_macro",
  "lazy_static",
  "regex",
  "urlencoding",
