@@ -2,7 +2,7 @@ use proc_macro::TokenStream;
 
 mod path;
 mod router;
-
+mod headers;
 mod util;
 
 #[proc_macro]
@@ -29,6 +29,13 @@ pub fn router(attrs: TokenStream, input: TokenStream) -> TokenStream {
         args, handler
     ).unwrap().into()
 }
+
+#[proc_macro]
+pub fn build_headers(data:TokenStream) -> TokenStream {
+    let input: headers::HeaderInput = syn::parse_macro_input!(data);
+    headers::generate_header_name_enums(input).into()
+}
+
 
 #[cfg(test)]
 mod path_tests {
