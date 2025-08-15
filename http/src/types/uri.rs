@@ -48,7 +48,7 @@
 /// query         = *uric
 /// fragment      = *uric
 /// uric          = reserved | unreserved | escaped
-use super::{Text, ParseText};
+use super::{Text, ParseText, Result, Tokens, TokenSeparator};
 
 
 pub struct Authority {
@@ -59,15 +59,15 @@ pub struct Authority {
 
 impl ParseText for Authority {
     type Error = String;
-    fn parse(value:&Text) -> super::Result<Self, Self::Error> {
-        let list = value.tokenize();
+    fn parse(value:&Text) -> Result<Self, Self::Error> {
+        let mut list = value.tokenize();
 
         match list.len() {
             //host
             1 => {
                 Ok(
                     Self {
-                        host: *list.get(0).unwrap(),
+                        host: Tokens::get_text(&mut list, 0)?,
                         port: None,
                         user: None
                     }
@@ -78,32 +78,46 @@ impl ParseText for Authority {
                 let user:Option<Text>;
                 let host:Text;
                 let port:Option<u16>;
-                let char = list.get(1).unwrap();
-                if *char == "@" {
-                    user = Some(*list.get(0).unwrap());
-                    host = *list.get(2).unwrap();
-                    port = None;
-                } else if *char == ":" {
-                    user = None;
-                    port = Some(list.get(2).unwrap().into()?);
-                    host = *list.get(0).unwrap();
-                } else {
-                    return Err(String::from("Invalid Authority Syntax!"));
+                match Tokens::get_seperator(&mut list, 1)? {
+                    TokenSeparator::At => {
+                        user = Some(Tokens::get_text(&mut list, 0)?);
+                        host = Tokens::get_text(&mut list,2)?;
+                        port = None
+                    },
+                    TokenSeparator::Colon => {
+                        user = None;
+                        host = Tokens::get_text(&mut list,0)?;
+                        port = Some(match Tokens::get_text(&mut list, 2)?.try_into(){
+                            Ok(port) => port,
+                            Err(e) =>{
+                                return Err(format!("{}", e))
+                            }
+                        });
+                    },
+                    _ => {
+                        return Err(String::from("Invalid Authority Syntax!"));
+                    }
                 }
                 
                 Ok(Self{host, user, port})
             },
             //user@host:port
             5 => {
-                if *list.get(1).unwrap() != "@" || *list.get(3).unwrap() != ":"{
+                if Tokens::get_seperator(&mut list,1)? != '@'
+                    || Tokens::get_seperator(&mut list,3)?  != ':'{
                     return Err(String::from("Invalid Authority Syntax!"));
                 }
 
                 Ok(
                     Self{ 
-                        user: Some(*list.get(0).unwrap()),
-                        host: *list.get(2).unwrap(),
-                        port: Some(list.get(4).unwrap().into()?)
+                        user: Some(Tokens::get_text(&mut list, 0)?),
+                        host: Tokens::get_text(&mut list,2)?,
+                        port: Some(match (Tokens::get_text(&mut list, 2)?).try_into(){
+                            Ok(port) => port,
+                            Err(e) =>{
+                                return Err(format!("{}", e))
+                            }
+                        })
                     }
                 )
             },
@@ -114,20 +128,87 @@ impl ParseText for Authority {
     }
 }
 
+pub struct AbsPath(Vec<Text>);
 
-use crate::Url;
+impl ParseText for AbsPath {
+    type Error = String;
+    fn parse(value: &Text) -> Result<Self, Self::Error> {
+        let mut list = value.tokenize().into_iter();
+        let mut vec: Vec<Text> = Vec::new();
+
+        //Mace sure to start loop without a seperator at the front.
+        if let Some(mut start) = list.next() {
+            if start.is_text() {
+                vec.push(start.text().unwrap());
+
+                if let Some(sep) = list.next() {
+                    match sep {
+                        Tokens::Seperator(s) => match s {
+                            TokenSeparator::ForwardSlash => {},
+                            _ => {
+                                return Err(format!("Invalid path seperator '{}'!", Into::<char>::into(s)))
+                            }
+                        },
+                        Tokens::Text(t) => {
+                            return Err(format!("Encoutnered segment \'{}\' instead of seperator!", Into::<String>::into(t)))
+                        }
+                    }
+                }
+            }
+        }
+
+        while let Some(mut segment) = list.next() {
+            if segment.is_text() {
+                vec.push(segment.text().unwrap())
+            } else {
+                return Err(format!(
+                    "Encoutnered seperator \'{}\' instead of path segment!",
+                    Into::<char>::into(segment.seperator().unwrap())
+                ));
+            }
+
+            if let Some(mut sep) = list.next() {
+                if sep.is_seperator() {
+                    let sep = sep.seperator().unwrap();
+                    if sep != '/' {
+                        return Err(format!("Invalid path seperator '{}'!", Into::<char>::into(sep)))
+                    }
+                } else {
+                     return Err(format!(
+                        "Encoutnered segment \'{}\' instead of seperator!",
+                        Into::<String>::into(sep.text().unwrap())
+                    ));
+                }
+            }
+        }
+
+        Ok(Self(vec))
+    }
+}
+
+struct AbsUri {
+    scheme: Text,
+    authority: Authority,
+    path: AbsPath,
+    query: Text
+}
+
+impl ParseText for AbsUri {
+    type Error = String;
+    fn parse(value: &Text) -> Result<Self, Self::Error> {
+
+    }
+}
 
 pub enum Uri {
     Asterisk,
-    AbsoluteURI(Url),
-    AbsolutePath(String),
-    Authority(String, String)
+    AbsoluteURI(AbsUri),
+    AbsolutePath(AbsPath),
+    Authority(Authority)
 }
 
-pub type UriParseError = String;
-
 impl Uri {
-    pub fn parse(value: &str) -> Result<Uri, UriParseError> {
+    pub fn parse(value: &str) -> Result<Uri, String> {
         if value == "*" {
             return Ok(Self::Asterisk);
         }
