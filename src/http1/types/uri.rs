@@ -49,7 +49,7 @@
 /// fragment      = *uric
 /// uric          = reserved | unreserved | escaped
 use super::{Text, ParseText, Result, Tokens, TokenSeparator};
-
+use http::Url;
 
 pub struct Authority {
     host: Text,
@@ -196,7 +196,7 @@ struct AbsUri {
 impl ParseText for AbsUri {
     type Error = String;
     fn parse(value: &Text) -> Result<Self, Self::Error> {
-
+        let test = bad;
     }
 }
 
@@ -207,7 +207,9 @@ pub enum Uri {
     Authority(Authority)
 }
 
-impl Uri {
+
+
+/*impl Uri {
     pub fn parse(value: &str) -> Result<Uri, String> {
         if value == "*" {
             return Ok(Self::Asterisk);
@@ -261,4 +263,4 @@ impl Uri {
             format!("Invalid uri: '{}'", value)
         )
     }
-}
+}*/
