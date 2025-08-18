@@ -1,6 +1,8 @@
 use http_macro::build_headers;
+use std::hash::{Hash, Hasher};
+use super::HeaderValue;
 
-build_headers!{
+build_headers!(
     (Accept, "Accept");
     (AcceptCharset, "Accept-Charset");
     (AcceptEncoding, "Accept-Encoding");
@@ -46,9 +48,9 @@ build_headers!{
     (Vary, "Vary");
     (Warning, "Warning");
     (WWWAuthenticate, "WWW-Authenticate");
-}
+);
 
-impl<'a> PartialEq for HeaderName<'a> {
+impl PartialEq for HeaderName {
     fn eq(&self, value:&Self) -> bool {
         let lhs: u8 = self.into();
         let rhs: u8 = value.into();
@@ -57,6 +59,32 @@ impl<'a> PartialEq for HeaderName<'a> {
             self.name() == value.name()
         } else {
             lhs == rhs
+        }
+    }
+}
+
+impl Eq for HeaderName {}
+
+impl Hash for HeaderName {
+    #[allow(unused_must_use)]
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.name().hash(state);
+        state.finish();
+    }
+}
+
+impl HeaderName {
+    pub fn is_custom(&self) -> bool {
+        match self {
+            Self::CustomHeaderName(_) => true,
+            _ => false
+        }
+    }
+
+    pub fn is_standard(&self) -> bool {
+        match self {
+            Self::CustomHeaderName(_) => false,
+            _ => true
         }
     }
 }
