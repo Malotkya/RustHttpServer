@@ -5,43 +5,65 @@
 ///////////////////////////////////////////////////////////////
 /// HTTP-Version   = "HTTP" "/" 1*DIGIT "." 1*DIGIT
 ///////////////////////////////////////////////////////////////
-use http::Version;
-use super::{Text, ParseText};
+use http::types::Version;
+use crate::http1::types::Seperator;
 
-impl ParseText for Version {
-    type Error = String;
-    fn parse(value: &Text) -> Result<Self, Self::Error>{
-        // list = ["HTTP", "/", "\d.\d"]
-        let mut list = value.tokenize();
+use super::{Text, Tokens, tokenize, Tokenizer};
 
-        if let Some(value) = list.pop() {
-            let major = match value.0.get(0) {
-                Some(c) => match c.cast_digit() {
-                    Ok(d) => d,
-                    Err(e) => {
-                        return Err(format!("{}", e))
-                    }
-                },
-                None => {
-                    return Err(String::from("Missing Major value!"));
+pub fn parse_version(text:&Text) -> Result<Version, ()> {
+    let list = tokenize(text);
+
+    //"HTTP"
+    match list.get(0) {
+        Some(value) => match value {
+            Tokens::Text(http) => {
+                if http.as_str().to_uppercase() != "HTTP" {
+                    return Err(());
                 }
-            };
-
-            let minor = match value.0.get(0) {
-                Some(c) => match c.cast_digit() {
-                    Ok(d) => d,
-                    Err(e) => {
-                        return Err(format!("{}", e))
-                    }
-                },
-                None => {
-                    return Err(String::from("Missing Minor value!"));
-                }
-            };
-
-            Ok(Self{major, minor})
-        } else {
-            Err(String::from("Text is blank."))
-        }
+            }
+            Tokens::Seperator(_) => return Err(())
+        },
+        None => return Err(())
+            
     }
+
+    //"/"
+    match list.get(1) {
+        Some(value) => match value {
+            Tokens::Seperator(sep) => {
+                if *sep != Seperator::ForwardSlash {
+                    return Err(())
+                }
+            },
+            Tokens::Text(_) => return Err(())
+        },
+        None => return Err(())
+    }
+
+        //\d.\d"
+        let version = match list.get(2) {
+            Some(value) => match value {
+                Tokens::Text(t) => t,
+                Tokens::Seperator(_) => return Err(())
+            },
+            None => return Err(()),
+        };
+
+        let major = match version.at(0) {
+            Some(c) => match (*c as char).to_digit(10) {
+                Some(d) => d as u8,
+                None => return Err(())
+            },
+            None => return Err(())
+        };
+
+        let minor = match version.at(0) {
+            Some(c) => match (*c as char).to_digit(10) {
+                Some(d) => d as u8,
+                None => return Err(())
+            },
+            None => return Err(())
+        };
+
+        Ok(Version{major, minor})
 }
