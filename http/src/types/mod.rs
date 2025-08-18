@@ -1,5 +1,7 @@
 mod url;
-pub use url::{Url, Search};
+pub use url::*;
+mod method;
+pub use method::*;
 
 pub type Result<T, E: std::fmt::Display> = std::result::Result<T, E>;
 
