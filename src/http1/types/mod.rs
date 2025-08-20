@@ -5,6 +5,7 @@ pub use tokens::*;
 mod version;
 pub use version::parse_version;
 mod uri;
+pub use uri::{Uri, UriError};
 
 const CHUNK_SIZE:usize = 1024;
 
@@ -21,7 +22,7 @@ pub trait ParseStream: Sized{
 }
 
 
-pub struct TcpStreamParser(TcpStream);
+pub struct TcpStreamParser(pub TcpStream);
 
 impl TcpStreamParser {
     pub fn new(stream:TcpStream) -> Self {
@@ -82,6 +83,14 @@ impl Tokenizer for Chunk {
     fn ptr(&self, index:usize) -> *mut u8 {
         unsafe { self.0.as_ptr().byte_offset(index as isize) as *mut u8 } 
     }
+
+    fn split<'a>(&'a self) -> SplitIterator<'a, Self> {
+        SplitIterator::new(self)
+    }
+
+    fn tokenize<'a>(&'a self) -> TokenIterator<'a, Self> {
+        TokenIterator::new(self)
+    }
 }
 
 impl Chunk {
@@ -93,6 +102,10 @@ impl Chunk {
             },
             None => None
         }
+    }
+
+    pub fn has_some(&self) -> bool {
+        !self.0.is_empty()
     }
 }
 
