@@ -122,7 +122,13 @@ impl From<String> for Hostname {
     }
 }
 
-
+impl From<&str> for Hostname {
+    fn from(value: &str) -> Hostname {
+        get_ipv4(&value).unwrap_or(
+            Hostname::Text(value.to_string())
+        )
+    }
+}
 
 #[derive(Debug)]
 pub struct Url {
