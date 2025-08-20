@@ -1,7 +1,7 @@
 use crate::{Url, Headers, Method, types::Version};
 
 pub trait RequestBody: Sized {
-    fn body(&self) -> Result<&[u8], &'static str>;
+    fn body(&mut self) -> Result<&[u8], &'static str>;
 }
 
 pub struct RequestBuilder<BODY>
