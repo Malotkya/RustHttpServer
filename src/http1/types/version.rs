@@ -8,13 +8,13 @@
 use http::types::Version;
 use crate::http1::types::Seperator;
 
-use super::{Text, Tokens, tokenize, Tokenizer};
+use super::{Text, Tokens, Tokenizer};
 
 pub fn parse_version(text:&Text) -> Result<Version, ()> {
-    let list = tokenize(text);
+    let mut list = text.tokenize();
 
     //"HTTP"
-    match list.get(0) {
+    match list.next() {
         Some(value) => match value {
             Tokens::Text(http) => {
                 if http.as_str().to_uppercase() != "HTTP" {
@@ -28,10 +28,10 @@ pub fn parse_version(text:&Text) -> Result<Version, ()> {
     }
 
     //"/"
-    match list.get(1) {
+    match list.next() {
         Some(value) => match value {
             Tokens::Seperator(sep) => {
-                if *sep != Seperator::ForwardSlash {
+                if sep != Seperator::ForwardSlash {
                     return Err(())
                 }
             },
@@ -41,7 +41,7 @@ pub fn parse_version(text:&Text) -> Result<Version, ()> {
     }
 
         //\d.\d"
-        let version = match list.get(2) {
+        let version = match list.next() {
             Some(value) => match value {
                 Tokens::Text(t) => t,
                 Tokens::Seperator(_) => return Err(())
