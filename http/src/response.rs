@@ -1,19 +1,20 @@
-use std::collections::HashMap;
-use std::net::TcpStream;
+use crate::{Headers, HttpError, HttpStatus};
 
-pub struct Response<STREAM = TcpStream> {
-    status: u16,
+pub struct Response {
+    pub status: HttpStatus,
     pub headers: Headers,
-    body: STREAM
+    body: Vec<u8>
 }
 
 #[allow(dead_code)]
-impl<STREAM> Response<STREAM> {
-    pub fn new(stream:STREAM) -> Self  {
+impl Response {
+    pub fn new<T>(body:&[u8]) -> Self  {
         Self {
-            status: 200,
+            status: HttpStatus::Ok,
             headers: Headers::new(),
-            stream: stream
+            body: body.into()
         }
     }
+
+    impl write()
 }
