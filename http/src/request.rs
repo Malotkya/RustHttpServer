@@ -1,29 +1,30 @@
-use crate::{Url, Headers, Method, types::Version};
+use crate::{Url, Headers, Method, types::{Version, BodyData}};
+use std::{boxed::Box, collections::HashMap};
 
-pub trait RequestBody: Sized {
+pub trait RequestBody {
     fn body(&mut self) -> Result<&[u8], &'static str>;
+    fn data(&mut self) -> Result<HashMap<String, BodyData>, &'static str>;
 }
 
-pub struct RequestBuilder<BODY>
-    where BODY: RequestBody {
+pub struct RequestBuilder<'body> {
     pub url:Url,
     pub version:Version,
     pub method: Method,
     pub headers: Headers,
-    pub buffer: BODY,
+    pub buffer: Box<dyn RequestBody +'body>
 }
 
 #[allow(dead_code)]
-impl<B> RequestBuilder<B>
-    where B: RequestBody {
-    pub fn new(url:Url, method:Method, headers:Headers, version:Version, buffer:B) -> Self {
+impl<'body> RequestBuilder<'body> {
+    pub fn new(url:Url, method:Method, headers:Headers, version:Version, buffer:Box<dyn RequestBody + 'body>) -> Self {
         Self {
             url, method, headers,
-            version, buffer
+            version,
+            buffer
         }
     }
 
-    pub fn build<'a, P>(&'a mut self, param:P) -> Request<'a, P, B> {
+    pub fn build<P>(&'body mut self, param:P) -> Request<'body, P> {
         Request {
             builder: self,
             param
@@ -31,15 +32,13 @@ impl<B> RequestBuilder<B>
     }
 }
 
-pub struct Request<'builder, PARAM, BODY> 
-    where BODY: RequestBody {
-    builder: &'builder mut RequestBuilder<BODY>,
+pub struct Request<'builder, PARAM> {
+    builder: &'builder mut RequestBuilder<'builder>,
     pub param: PARAM
 }
 
 #[allow(dead_code)]
-impl<'b, P, B> Request<'b, P, B>
-    where B: RequestBody {
+impl<'b, P> Request<'b, P> {
     pub fn url(&'b self) -> &'b Url {
         &self.builder.url
     }
