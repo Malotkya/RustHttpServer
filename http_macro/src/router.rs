@@ -90,7 +90,7 @@ pub fn build_router(args:RouterAttributes, handler:syn::ItemFn) -> Result<TokenS
                 }
             }
 
-            impl Router for #name {
+            impl http::Router for #name {
                 fn handle<'a>(&self, url:&'a str) -> Option<()> {
                     match self.match_path(url) {
                         Some(param) => {
