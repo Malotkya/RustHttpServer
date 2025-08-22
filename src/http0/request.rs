@@ -2,6 +2,7 @@
 /// 
 /// GET [PATH]
 /// 
+use std::fmt;
 use http::{Headers, Method, Url, types::Version};
 use http::request::{RequestBuilder, RequestBody};
 use crate::http1::{types::Uri};
@@ -15,18 +16,27 @@ impl RequestBody for EmptyBody {
 }
 
 pub enum BuildError {
-    OnlyGetMethod(Method),
-    OnlyAbsolutePath(String),
+    OnlyGetMethod,
+    OnlyAbsolutePath,
 }
 
-pub fn build(port:u16, method: Method, path:Uri) -> Result<RequestBuilder<EmptyBody>, BuildError> {
+impl fmt::Display for BuildError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::OnlyAbsolutePath => write!(f, "Only absolute paths are allowed in http/0.9 requests!"),
+            Self::OnlyGetMethod => write!(f, "Only Get methods are allowed in http/0.9 requests!"),
+        }
+    }
+}
+
+pub fn build<'a>(port:u16, method: Method, path:Uri) -> Result<RequestBuilder<'a>, BuildError> {
     if method != Method::GET {
-        return Err(BuildError::OnlyGetMethod(method))
+        return Err(BuildError::OnlyGetMethod)
     }
 
     let path = match path.absolute_path() {
         Ok(str) => str,
-        Err(e) => return Err(BuildError::OnlyAbsolutePath(e))
+        Err(_) => return Err(BuildError::OnlyAbsolutePath)
     };
 
     Ok(RequestBuilder::new(
@@ -34,6 +44,6 @@ pub fn build(port:u16, method: Method, path:Uri) -> Result<RequestBuilder<EmptyB
         method,
         Headers::new(),
         Version{major: 0, minor: 9},
-        EmptyBody
+        Box::new(EmptyBody)
     ))
 }

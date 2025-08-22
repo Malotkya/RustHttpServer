@@ -5,24 +5,36 @@
 /// %CRLF%
 /// [BODY]
 /// 
+use std::fmt;
 use http::{request::{RequestBuilder, RequestBody}, Method, Headers, types::ToUrl};
 use http::types::Result;
 use std::{net::TcpStream, io::BufReader};
-
-
 use super::types::*;
-use crate::http0::request::build;
 
-pub enum BuildError<'a> {
-    //http0 Errors
+pub enum BuildError {
     IoError(std::io::Error),
     EmptyRequest,
     ParseError(&'static str),
-    InvalidMethod(&'a str),
-    InvalidVersion(&'a str),
-    MissingVersin(Method, Uri),
+    InvalidMethod(String),
+    InvalidVersion(String),
+    MissingVersion(Method, Uri),
     InvalidUri(UriError),
     InvalidUrl(String)
+}
+
+impl fmt::Display for BuildError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::IoError(e) => write!(f, "{}", e),
+            Self::EmptyRequest => write!(f, "Empty Reqeust recieved!"),
+            Self::ParseError(str) => write!(f, "{}", str),
+            Self::InvalidMethod(str) => write!(f, "{} is not a valid method!", str),
+            Self::InvalidVersion(str) => write!(f, "{} is not a valid version!", str),
+            Self::MissingVersion(_, _) => write!(f, "Unable to find the http version!"),
+            Self::InvalidUri(e) => write!(f, "{}", e),
+            Self::InvalidUrl(str) => write!(f, "{}", str)
+        }
+    }
 }
 
 struct Http1RequestBody(BufReader<TcpStream>, bool);
@@ -38,8 +50,8 @@ impl RequestBody for Http1RequestBody {
     }
 }
 
-pub fn parse_request<'a>(stream:TcpStream, hostname:&str, port:u16) -> Result<RequestBuilder<Http1RequestBody>, BuildError<'a>> {
-    let parser = TcpStreamParser::new(stream);
+pub fn parse_request(stream:TcpStream, hostname:&str, port:u16) -> Result<RequestBuilder, BuildError> {
+    let mut parser = TcpStreamParser::new(stream);
 
     let start_line = match parser.parse(){
         Ok(Some(line)) => line,
@@ -57,7 +69,7 @@ pub fn parse_request<'a>(stream:TcpStream, hostname:&str, port:u16) -> Result<Re
         Some(t) => match Method::from(t.as_str()) {
             Some(m) => m,
             None => return Err(
-                BuildError::InvalidMethod(t.as_str())
+                BuildError::InvalidMethod(t.to_string())
             )
         },
         None => return Err(BuildError::ParseError("Missing Method at start of request!"))
@@ -79,26 +91,38 @@ pub fn parse_request<'a>(stream:TcpStream, hostname:&str, port:u16) -> Result<Re
         Some(t) => match parse_version(&t) {
             Ok(v) => v,
             Err(_) => return Err(
-                BuildError::InvalidVersion(t.as_str())
+                BuildError::InvalidVersion(t.to_string())
             )
         }
         None => return Err(
-            BuildError::MissingVersin(method, uri)
+            BuildError::MissingVersion(method, uri)
         )
     };
 
     let mut headers = Headers::new();
-    while let Ok(Some(chunk)) = parser.parse() && chunk.has_some(){
+    while let Some(chunk) = parser.parse().map_err(|e|match e{
+        ParseStreamError::ParseError(str) => BuildError::ParseError(str),
+        ParseStreamError::ReadError(e) => BuildError::IoError(e)
+    })? && chunk.has_some() {
+        //chunk = Header Name: Header Value
+        let mut line = chunk.as_str().split(':');
 
+        headers.set(
+            line.next().unwrap().trim(),
+            line.next().unwrap_or("").trim()
+        )
     }
 
     Ok(
         RequestBuilder::new(
-            uri.to_url(hostname.into(), port).map_err(|e|BuildError::InvalidUrl(e))?,
+            uri.to_url(hostname.into(), port)
+                    .map_err(|e|BuildError::InvalidUrl(e))?,
             method,
             headers,
             version,
-            Http1RequestBody(BufReader::new(parser.0), false)
+            Box::new(
+                Http1RequestBody(BufReader::new(parser.0), false)
+            )
         )
     )
 }
