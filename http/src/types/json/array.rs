@@ -21,7 +21,7 @@ impl<I> FromIterator<I> for JsonValue where I: Into<JsonValue> {
     }
 }
 
-enum JsonValueIterator<'ptr> where {
+pub enum JsonValueIterator<'ptr> where {
     Array(Iter<'ptr, JsonValue>),
     Object(Values<'ptr, String, JsonValue>),
     String(&'ptr str, isize),

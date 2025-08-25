@@ -30,9 +30,9 @@ impl<'p> JsonRef<'p> {
     pub fn to_owned(&self) -> JsonValue {
         match self {
             Self::Undefined => JsonValue::Undefined,
-            Self::Boolean(b) => JsonValue::Boolean(*b.clone()),
-            Self::Integer(i) => JsonValue::Integer(*i.clone()),
-            Self::Number(n) => JsonValue::Number(*n.clone()),
+            Self::Boolean(b) => JsonValue::Boolean((*b).clone()),
+            Self::Integer(i) => JsonValue::Integer((*i).clone()),
+            Self::Number(n) => JsonValue::Number((*n).clone()),
             Self::String(s) => JsonValue::String((*s).clone()),
             Self::Array(a) => JsonValue::Array((*a).clone()),
             Self::Object(o) => JsonValue::Object((*o).clone()),
@@ -42,28 +42,28 @@ impl<'p> JsonRef<'p> {
 }
 
 impl<'p> JsonRef<'p> {
-    fn boolean(&self) -> Option<&'p bool> {
+    pub fn boolean(&self) -> Option<&'p bool> {
         match self {
             Self::Boolean(ptr) => Some(*ptr),
             _ => None
         }
     }
 
-    fn integer(&self) -> Option<&'p integer::Type> {
+    pub fn integer(&self) -> Option<&'p integer::Type> {
         match self {
             Self::Integer(ptr) => Some(*ptr),
             _ => None
         }
     }
 
-    fn number(&self) -> Option<&'p number::Type> {
+    pub fn number(&self) -> Option<&'p number::Type> {
         match self {
             Self::Number(ptr) => Some(*ptr),
             _ => None
         }
     }
 
-    fn string(&self) -> Option<&'p str> {
+    pub fn string(&self) -> Option<&'p str> {
         match self {
             Self::String(ptr) => Some(*ptr),
             Self::Char(ptr) => unsafe {
@@ -76,14 +76,14 @@ impl<'p> JsonRef<'p> {
         }
     }
 
-    fn array(&self) -> Option<&'p array::Type> {
+    pub fn array(&self) -> Option<&'p array::Type> {
         match self {
             Self::Array(ptr) => Some(*ptr),
             _ => None
         }
     }
 
-    fn object(&self) -> Option<&'p object::Type> {
+    pub fn object(&self) -> Option<&'p object::Type> {
         match self {
             Self::Object(Some(ptr)) => Some(ptr),
             _ => None
