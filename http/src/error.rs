@@ -4,8 +4,8 @@ use crate::HttpStatus;
 
 #[derive(Clone)]
 pub struct HttpError{
-    message: String,
-    kind: HttpErrorKind
+    pub message: String,
+    pub kind: HttpErrorKind
 }
 
 impl HttpError {
