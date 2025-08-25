@@ -1,5 +1,3 @@
-use std::fmt;
-
 ///////////////////////////////////////////////////////////////
 /// Http Url
 /// RFC-2616 5.1.2
@@ -51,7 +49,8 @@ use std::fmt;
 /// fragment      = *uric
 /// uric          = reserved | unreserved | escaped
 use super::{Text, Tokens, Seperator, Tokenizer, TokenError, TokenIterator};
-use http::types::{Hostname, Url, ToUrl};
+use std::fmt;
+use crate::types::{Hostname, Url, ToUrl};
 
 /*lazy_static::lazy_static!{
     static ref ABS_URI_REF:Text = Text::from_str();

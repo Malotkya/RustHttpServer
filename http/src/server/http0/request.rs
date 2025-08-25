@@ -3,14 +3,17 @@
 /// GET [PATH]
 /// 
 use std::fmt;
-use http::{Headers, Method, Url, types::Version};
-use http::request::{RequestBuilder, RequestBody};
-use crate::http1::{types::Uri};
+use crate::{Headers, Method, Url, types::Version, BodyData, RequestBuilder, RequestBody};
+use crate::server::http1::{types::Uri};
 
 struct EmptyBody;
 
 impl RequestBody for EmptyBody {
     fn body(&mut self) -> Result<&[u8], &'static str> {
+        Err("No body is abailable in Http0 requests!")
+    }
+
+    fn data(&mut self) -> Result<BodyData, &'static str> {
         Err("No body is abailable in Http0 requests!")
     }
 }

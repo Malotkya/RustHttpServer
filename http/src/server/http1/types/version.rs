@@ -5,8 +5,8 @@
 ///////////////////////////////////////////////////////////////
 /// HTTP-Version   = "HTTP" "/" 1*DIGIT "." 1*DIGIT
 ///////////////////////////////////////////////////////////////
-use http::types::Version;
-use crate::http1::types::Seperator;
+use crate::Version;
+use super::Seperator;
 
 use super::{Text, Tokens, Tokenizer};
 

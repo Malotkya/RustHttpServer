@@ -6,18 +6,19 @@
 /// [BODY]
 /// 
 use std::fmt;
-use http::{request::{RequestBuilder, RequestBody}, Method, Headers, types::ToUrl};
-use http::types::Result;
-use std::{net::TcpStream, io::BufReader};
+use crate::{RequestBuilder, RequestBody, Method, Headers, types::ToUrl, BodyData, Result};
+use std::io::{BufReader, Read};
 use super::types::*;
 
 pub enum BuildError {
     IoError(std::io::Error),
     EmptyRequest,
-    ParseError(&'static str),
+    ParseError(ParseStreamError),
+    MissingMethod,
     InvalidMethod(String),
     InvalidVersion(String),
     MissingVersion(Method, Uri),
+    MissingUri,
     InvalidUri(UriError),
     InvalidUrl(String)
 }
@@ -28,18 +29,20 @@ impl fmt::Display for BuildError {
             Self::IoError(e) => write!(f, "{}", e),
             Self::EmptyRequest => write!(f, "Empty Reqeust recieved!"),
             Self::ParseError(str) => write!(f, "{}", str),
+            Self::MissingMethod => write!(f, "Missing Method at start of request!"),
             Self::InvalidMethod(str) => write!(f, "{} is not a valid method!", str),
             Self::InvalidVersion(str) => write!(f, "{} is not a valid version!", str),
             Self::MissingVersion(_, _) => write!(f, "Unable to find the http version!"),
             Self::InvalidUri(e) => write!(f, "{}", e),
+            Self::MissingUri => write!(f, "Uri missing from request!"),
             Self::InvalidUrl(str) => write!(f, "{}", str)
         }
     }
 }
 
-struct Http1RequestBody(BufReader<TcpStream>, bool);
+struct Http1RequestBody<S>(BufReader<S>, bool) where S: Read;
 
-impl RequestBody for Http1RequestBody {
+impl<S> RequestBody for Http1RequestBody<S> where S: Read {
     fn body(&mut self) -> std::result::Result<&[u8], &'static str> {
         if self.1 {
             Err("Body has already been used!")
@@ -48,20 +51,32 @@ impl RequestBody for Http1RequestBody {
             Ok(self.0.buffer())
         }
     }
+
+    fn data(&mut self) -> std::result::Result<BodyData, &'static str> {
+        if self.1 {
+            Err("Body has already been used!")
+        } else {
+            self.1 = true;
+            todo!("Parse Body Data!")
+        }
+    }
 }
 
-pub fn parse_request(stream:TcpStream, hostname:&str, port:u16) -> Result<RequestBuilder, BuildError> {
-    let mut parser = TcpStreamParser::new(stream);
+pub fn parse_request<'a, S>(stream:S, hostname:&str, port:u16) -> Result<RequestBuilder<'a>, BuildError>
+    where S: Read + 'a{
+
+    let mut parser = StreamParser::new(stream);
 
     let start_line = match parser.parse(){
         Ok(Some(line)) => line,
         Ok(None) => return Err(BuildError::EmptyRequest),
         Err(e) => match e {
-            ParseStreamError::ParseError(e) =>
-                return Err(BuildError::ParseError(e)),
             ParseStreamError::ReadError(e) =>
-                return Err(BuildError::IoError(e))
-        }
+                return Err(BuildError::IoError(e)),
+            parse_err => {
+                return Err(BuildError::ParseError(parse_err));
+            }
+         }
     };
 
     let mut it = start_line.split();
@@ -72,7 +87,7 @@ pub fn parse_request(stream:TcpStream, hostname:&str, port:u16) -> Result<Reques
                 BuildError::InvalidMethod(t.to_string())
             )
         },
-        None => return Err(BuildError::ParseError("Missing Method at start of request!"))
+        None => return Err(BuildError::MissingMethod)
     };
 
     let uri = match it.next() {
@@ -83,7 +98,7 @@ pub fn parse_request(stream:TcpStream, hostname:&str, port:u16) -> Result<Reques
             )
         },
         None => return Err(
-            BuildError::ParseError("Uri missing from request!")
+            BuildError::MissingUri
         )
     };
 
@@ -101,8 +116,8 @@ pub fn parse_request(stream:TcpStream, hostname:&str, port:u16) -> Result<Reques
 
     let mut headers = Headers::new();
     while let Some(chunk) = parser.parse().map_err(|e|match e{
-        ParseStreamError::ParseError(str) => BuildError::ParseError(str),
-        ParseStreamError::ReadError(e) => BuildError::IoError(e)
+        ParseStreamError::ReadError(e) => BuildError::IoError(e),
+        parse_err => BuildError::ParseError(parse_err)
     })? && chunk.has_some() {
         //chunk = Header Name: Header Value
         let mut line = chunk.as_str().split(':');
@@ -121,7 +136,7 @@ pub fn parse_request(stream:TcpStream, hostname:&str, port:u16) -> Result<Reques
             headers,
             version,
             Box::new(
-                Http1RequestBody(BufReader::new(parser.0), false)
+                Http1RequestBody(parser.take_reader().unwrap(), false)
             )
         )
     )
