@@ -1,4 +1,6 @@
 mod url;
+use std::collections::HashMap;
+
 pub use url::*;
 mod method;
 pub use method::*;
@@ -14,13 +16,19 @@ pub struct Version {
     pub minor: u8
 }
 
-pub enum BodyData {
+impl ToString for Version {
+    fn to_string(&self) -> String {
+        format!("HTTP:/{}.{}", self.major, self.minor)
+    }
+}
+
+pub enum BodyDataType {
     File(FileData),
     Value(JsonValue)
 }
 
-impl BodyData {
-    fn new_file(filename:&str, mimetype:&str, data:&[u8]) -> Self {
+impl BodyDataType {
+    pub fn new_file(filename:&str, mimetype:&str, data:&[u8]) -> Self {
         Self::File(
             FileData {
                 name: String::from(filename),
@@ -30,26 +38,28 @@ impl BodyData {
         )
     }
 
-    fn new(data:&str) -> Self {
+    pub fn new(data:&str) -> Self {
         Self::Value(
             JsonValue::String(String::from(data))
         )
     }
 
-    fn value<'a>(&'a self) -> Option<JsonRef<'a>> {
+    pub fn value<'a>(&'a self) -> Option<JsonRef<'a>> {
         match self {
             Self::Value(data) => Some(data.into()),
             Self::File(_) => None
         }
     }
 
-    fn file<'a>(&'a self) -> Option<&'a FileData> {
+    pub fn file<'a>(&'a self) -> Option<&'a FileData> {
         match self {
             Self::File(data) => Some(data),
             Self::Value(_) => None
         }
     }
 }
+
+pub type BodyData = HashMap<String, BodyDataType>;
 
 pub struct FileData {
     pub name: String,
