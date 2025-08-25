@@ -6,6 +6,7 @@
 pub use name::HeaderName;
 pub use value::HeaderValue;
 use std::collections::HashMap;
+use std::collections::hash_map::Iter;
 
 mod value;
 mod name;
@@ -34,5 +35,18 @@ impl Headers {
 
     pub fn clear(&mut self) {
         self.0.clear();
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.0.len() == 0
+    }
+}
+
+impl<'a> IntoIterator for &'a Headers {
+    type Item = (&'a HeaderName, &'a HeaderValue);
+    type IntoIter = Iter<'a, HeaderName, HeaderValue>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.iter()
     }
 }
