@@ -1,9 +1,9 @@
 use crate::{Url, Headers, Method, types::{Version, BodyData}};
-use std::{boxed::Box, collections::HashMap};
+use std::boxed::Box;
 
 pub trait RequestBody {
     fn body(&mut self) -> Result<&[u8], &'static str>;
-    fn data(&mut self) -> Result<HashMap<String, BodyData>, &'static str>;
+    fn data(&mut self) -> Result<BodyData, &'static str>;
 }
 
 pub struct RequestBuilder<'body> {
