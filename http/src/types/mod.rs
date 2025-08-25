@@ -1,15 +1,27 @@
-mod url;
-use std::collections::HashMap;
-
-pub use url::*;
-mod method;
-pub use method::*;
-mod status;
-pub use status::HttpStatus;
+mod error;
+pub use error::{HttpError, HttpErrorKind};
+mod headers;
+pub use headers::*;
 mod json;
 pub use json::*;
+mod method;
+pub use method::*;
+mod path;
+pub use path::Path;
+pub mod request;
+pub use request::*;
+mod response;
+pub use response::*;
+mod status;
+pub use status::HttpStatus;
+mod url;
+pub use url::*;
 
 pub type Result<T, E: std::fmt::Display> = std::result::Result<T, E>;
+
+pub trait Router {
+    fn handle<'a>(&self, req:&'a mut RequestBuilder<'a> ) -> Result<Option<Response>, HttpError>;
+}
 
 pub struct Version {
     pub major: u8,
@@ -22,47 +34,3 @@ impl ToString for Version {
     }
 }
 
-pub enum BodyDataType {
-    File(FileData),
-    Value(JsonValue)
-}
-
-impl BodyDataType {
-    pub fn new_file(filename:&str, mimetype:&str, data:&[u8]) -> Self {
-        Self::File(
-            FileData {
-                name: String::from(filename),
-                mimetype: String::from(mimetype),
-                data: data.into()
-            }
-        )
-    }
-
-    pub fn new(data:&str) -> Self {
-        Self::Value(
-            JsonValue::String(String::from(data))
-        )
-    }
-
-    pub fn value<'a>(&'a self) -> Option<JsonRef<'a>> {
-        match self {
-            Self::Value(data) => Some(data.into()),
-            Self::File(_) => None
-        }
-    }
-
-    pub fn file<'a>(&'a self) -> Option<&'a FileData> {
-        match self {
-            Self::File(data) => Some(data),
-            Self::Value(_) => None
-        }
-    }
-}
-
-pub type BodyData = HashMap<String, BodyDataType>;
-
-pub struct FileData {
-    pub name: String,
-    pub mimetype: String,
-    pub data: Vec<u8>
-}
