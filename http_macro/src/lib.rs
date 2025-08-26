@@ -4,6 +4,7 @@ mod path;
 mod router;
 mod headers;
 mod util;
+mod server;
 
 #[proc_macro]
 pub fn path(data:TokenStream) -> TokenStream {
@@ -34,6 +35,14 @@ pub fn router(attrs: TokenStream, input: TokenStream) -> TokenStream {
 pub fn build_headers(data:TokenStream) -> TokenStream {
     let input: headers::HeaderInput = syn::parse_macro_input!(data);
     headers::generate_header_name_enums(input).into()
+}
+
+#[proc_macro_attribute]
+pub fn server(attrs:TokenStream, input: TokenStream) -> TokenStream {
+    let args: server::ServerArguments = syn::parse_macro_input!(attrs);
+    let att: server::ServerAttributes = syn::parse_macro_input!(input);
+
+    server::build_server(args, att).into()
 }
 
 
