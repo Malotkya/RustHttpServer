@@ -6,8 +6,8 @@
 /// [BODY]
 /// 
 use std::fmt;
-use crate::{RequestBuilder, RequestBody, Method, Headers, types::ToUrl, BodyData, Result};
-use std::io::{BufReader, Read};
+use crate::{RequestBuilder, Method, Headers, types::ToUrl, Result};
+use std::io::Read;
 use super::types::*;
 
 pub enum BuildError {
@@ -40,30 +40,8 @@ impl fmt::Display for BuildError {
     }
 }
 
-struct Http1RequestBody<S>(BufReader<S>, bool) where S: Read;
-
-impl<S> RequestBody for Http1RequestBody<S> where S: Read {
-    fn body(&mut self) -> std::result::Result<&[u8], &'static str> {
-        if self.1 {
-            Err("Body has already been used!")
-        } else {
-            self.1 = true;
-            Ok(self.0.buffer())
-        }
-    }
-
-    fn data(&mut self) -> std::result::Result<BodyData, &'static str> {
-        if self.1 {
-            Err("Body has already been used!")
-        } else {
-            self.1 = true;
-            todo!("Parse Body Data!")
-        }
-    }
-}
-
-pub fn parse_request<'a, S>(stream:S, hostname:&str, port:u16) -> Result<RequestBuilder<'a>, BuildError>
-    where S: Read + 'a{
+pub fn parse_request<S>(stream:S, hostname:&str, port:u16) -> Result<RequestBuilder<S>, BuildError>
+    where S: Read{
 
     let mut parser = StreamParser::new(stream);
 
@@ -135,9 +113,7 @@ pub fn parse_request<'a, S>(stream:S, hostname:&str, port:u16) -> Result<Request
             method,
             headers,
             version,
-            Box::new(
-                Http1RequestBody(parser.take_reader().unwrap(), false)
-            )
+            Some(parser.take_reader().unwrap())
         )
     )
 }

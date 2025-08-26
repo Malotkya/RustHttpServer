@@ -1,6 +1,6 @@
-use super::{Url, Headers, Method, Version, JsonValue, JsonRef};
-use std::boxed::Box;
+use super::{Url, Headers, Method, Version, JsonValue, JsonRef, HttpError};
 use std::collections::HashMap;
+use std::io::{BufReader, Read};
 
 pub enum BodyDataType {
     File(FileData),
@@ -47,59 +47,83 @@ pub struct FileData {
     pub data: Vec<u8>
 }
 
-pub trait RequestBody {
-    fn body(&mut self) -> Result<&[u8], &'static str>;
-    fn data(&mut self) -> Result<BodyData, &'static str>;
+pub struct RequestBuilder<STREAM> where STREAM: Read {
+    pub(crate) url:Url,
+    pub(crate) version:Version,
+    pub(crate) method: Method,
+    pub(crate) headers: Headers,
+    buffer: Option<BufReader<STREAM>>,
+    body_used:bool
 }
 
-pub struct RequestBuilder<'body> {
-    pub url:Url,
-    pub version:Version,
-    pub method: Method,
-    pub headers: Headers,
-    pub buffer: Box<dyn RequestBody +'body>
-}
-
-impl<'body> RequestBuilder<'body> {
-    pub fn new(url:Url, method:Method, headers:Headers, version:Version, buffer:Box<dyn RequestBody + 'body>) -> Self {
+impl<S> RequestBuilder<S> where S: Read{
+    pub(crate) fn new(url:Url, method:Method, headers:Headers, version:Version, buffer:Option<BufReader<S>> ) -> Self where S: Read {
         Self {
             url, method, headers,
-            version,
-            buffer
+            version, buffer,
+            body_used: false
         }
     }
 
-    pub fn build<P>(&'body mut self, param:P) -> Request<'body, P> {
+    pub fn body(&mut self) -> Result<Option<&[u8]>, &'static str> {
+        if self.body_used {
+            Err("Request Body is already used!")
+        } else {
+            self.body_used = false;
+            match &self.buffer {
+                Some(reader) => Ok(Some(reader.buffer())),
+                None => Ok(None)
+            }
+        }
+    }
+
+    pub fn build<'b, P>(&'b mut self, param:P) -> Request<'b, S, P> {
         Request {
             builder: self,
             param
         }
     }
+
+    pub fn error<'b>(&'b mut self, err: HttpError) -> ErrorRequest<'b, S> {
+        Request {
+            builder: self,
+            param: err
+        }
+    }
 }
 
-pub struct Request<'builder, PARAM> {
-    builder: &'builder mut RequestBuilder<'builder>,
+pub type ErrorRequest<'builder, STREAM> = Request<'builder, STREAM, HttpError>;
+
+pub struct Request<'builder, STREAM, PARAM> where STREAM: Read {
+    builder: &'builder mut RequestBuilder<STREAM>,
     pub param: PARAM
 }
 
-impl<'b, P> Request<'b, P> {
-    pub fn url(&'b self) -> &'b Url {
+impl<'b, S, P> Request<'b, S, P> where S: Read{
+    pub fn url(&self) -> &Url {
         &self.builder.url
     }
 
-    pub fn http_version(&'b self) -> &'b Version {
+    pub fn version(&self) -> &Version {
         &self.builder.version
     }
 
-    pub fn method(&'b self) -> &'b Method {
-        &self.builder.method
-    }
-
-    pub fn headers(&'b self) -> &'b Headers {
+    pub fn headers(&self) -> &Headers {
         &self.builder.headers
     }
 
-    pub fn body(&'b mut self) -> Result<&'b [u8], &'static str> {
-        self.builder.buffer.body()
+    pub fn method(&self) -> &Method {
+        &self.builder.method
+    }
+
+    pub fn body(&mut self) -> Result<Option<&[u8]>, &'static str> {
+        self.builder.body()
+    }
+
+    pub fn data(&mut self) -> Result<Option<BodyData>, &'static str> {
+        match self.builder.body()? {
+            Some(_) => todo!("Parse Body Data"),
+            None => Ok(None)
+        }
     }
 }

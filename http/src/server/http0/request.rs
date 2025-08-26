@@ -2,21 +2,9 @@
 /// 
 /// GET [PATH]
 /// 
-use std::fmt;
-use crate::{Headers, Method, Url, types::Version, BodyData, RequestBuilder, RequestBody};
+use std::{fmt, io::Read};
+use crate::{Headers, Method, Url, types::Version, RequestBuilder};
 use crate::server::http1::{types::Uri};
-
-struct EmptyBody;
-
-impl RequestBody for EmptyBody {
-    fn body(&mut self) -> Result<&[u8], &'static str> {
-        Err("No body is abailable in Http0 requests!")
-    }
-
-    fn data(&mut self) -> Result<BodyData, &'static str> {
-        Err("No body is abailable in Http0 requests!")
-    }
-}
 
 pub enum BuildError {
     OnlyGetMethod,
@@ -32,7 +20,8 @@ impl fmt::Display for BuildError {
     }
 }
 
-pub fn build<'a>(port:u16, method: Method, path:Uri) -> Result<RequestBuilder<'a>, BuildError> {
+pub fn build<S>(port:u16, method: Method, path:Uri) -> Result<RequestBuilder<S>, BuildError> 
+    where S: Read {
     if method != Method::GET {
         return Err(BuildError::OnlyGetMethod)
     }
@@ -47,6 +36,6 @@ pub fn build<'a>(port:u16, method: Method, path:Uri) -> Result<RequestBuilder<'a
         method,
         Headers::new(),
         Version{major: 0, minor: 9},
-        Box::new(EmptyBody)
+        None
     ))
 }
