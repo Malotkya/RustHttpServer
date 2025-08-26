@@ -324,7 +324,7 @@ impl ToString for AbsPath {
     }
 }
 
-struct AbsUri {
+pub struct AbsUri {
     scheme: Text,
     authority: Option<Authority>,
     path: AbsPath,

@@ -177,6 +177,7 @@ impl fmt::Display for TokenError {
     }
 }
 
+#[allow(dead_code)]
 impl Tokens {
     pub fn is_seperator(&self) -> bool {
         match self {
@@ -292,15 +293,6 @@ impl Into<char> for Seperator {
 pub struct Text {
     ptr: *const u8,
     size: usize
-}
-
-impl Text {
-    pub fn from(vec:&Vec<u8>) -> Self {
-        Self { 
-            ptr: vec.as_ptr(),
-            size: vec.len()
-        }
-    }
 }
 
 impl ToString for Text {
