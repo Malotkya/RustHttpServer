@@ -1,3 +1,5 @@
+use std::io::Read;
+
 mod error;
 pub use error::{HttpError, HttpErrorKind};
 mod headers;
@@ -20,7 +22,8 @@ pub use url::*;
 pub type Result<T, E: std::fmt::Display> = std::result::Result<T, E>;
 
 pub trait Router {
-    fn handle<'a>(&self, req:&'a mut RequestBuilder<'a> ) -> Result<Option<Response>, HttpError>;
+    fn handle<S>(&self, req:RequestBuilder<S>) -> Result<Option<Response>, HttpError>
+        where S: Read;
 }
 
 pub struct Version {
