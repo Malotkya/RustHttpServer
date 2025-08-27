@@ -4,7 +4,7 @@
 /// 
 use std::{fmt, io::Read};
 use crate::{Headers, Method, Url, types::Version, RequestBuilder};
-use crate::server::http1::{types::Uri};
+use crate::http1::{types::Uri};
 
 pub enum BuildError {
     OnlyGetMethod,

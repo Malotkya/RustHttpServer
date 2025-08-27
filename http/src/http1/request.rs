@@ -6,7 +6,7 @@
 /// [BODY]
 /// 
 use std::fmt;
-use crate::{RequestBuilder, Method, Headers, types::ToUrl, Result};
+use crate::{RequestBuilder, Method, Headers, types::ToUrl};
 use std::io::Read;
 use super::types::*;
 
