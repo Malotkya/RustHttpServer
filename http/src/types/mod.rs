@@ -30,7 +30,7 @@ pub struct Version {
 
 impl ToString for Version {
     fn to_string(&self) -> String {
-        format!("HTTP:/{}.{}", self.major, self.minor)
+        format!("HTTP/{}.{}", self.major, self.minor)
     }
 }
 
