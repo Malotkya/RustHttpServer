@@ -130,7 +130,7 @@ impl Authority {
                         }
                     },
                     Tokens::Text(txt) => return Err(UriError::ParseToken(
-                        TokenError::SeperatorError(None, txt.clone())
+                        TokenError::SeperatorError(None, txt.as_str().to_string())
                     ))                
                 }
                 
