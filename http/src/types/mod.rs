@@ -20,7 +20,7 @@ pub use url::*;
 pub type Result = std::result::Result<Response, HttpError>;
 
 pub trait Router {
-    fn handle(&self, req:&mut RequestBuilder<impl std::io::Read>) -> impl Future<Output = std::result::Result<Option<Response>, HttpError>>;
+    fn handle(&self, req:&mut RequestBuilder<std::net::TcpStream>) -> impl Future<Output = std::result::Result<Option<Response>, HttpError>>;
 }
 
 pub struct Version {

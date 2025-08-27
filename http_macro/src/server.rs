@@ -162,7 +162,7 @@ fn build_error_handler(func:&Option<syn::ItemFn>) -> TokenStream {
             }
         },
         None => quote!{
-            async fn error_handler<'a>(&self, req:http::ErrorRequest<'a, impl std::io::Read>) -> http::Response {
+            async fn error_handler(&self, req:http::ErrorRequest) -> http::Response {
                 http::Response::from_error(req.param)
             }
         }
@@ -181,7 +181,7 @@ fn build_handler(routers:&Vec<syn::Ident>) -> TokenStream {
     }
 
     quote!{
-        async fn handle(&self, builder:&mut http::RequestBuilder<impl std::io::Read>) -> http::Result {
+        async fn handle(&self, builder:&mut http::RequestBuilder<std::net::TcpStream>) -> http::Result {
             use http::Router;
             #handle_router
 
@@ -233,7 +233,7 @@ fn build_server_layers(args:&ServerArguments, att:&ServerAttributes) -> (TokenSt
                 &self.port
             }
 
-            async fn handle_request(&self, req:&mut http::RequestBuilder<impl std::io::Read>) -> http::Response {
+            async fn handle_request(&self, req:&mut http::RequestBuilder<std::net::TcpStream>) -> http::Response {
                 match self.handle(req).await {
                     Ok(resp) => resp,
                     Err(e) => self.error_handler(req.error(e)).await

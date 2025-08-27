@@ -12,7 +12,7 @@ mod task;
 mod queue;
 
 pub trait ServerParts {
-    fn handle_request(&self, req:&mut RequestBuilder<impl Read>) -> impl Future<Output = Response>;
+    fn handle_request(&self, req:&mut RequestBuilder<TcpStream>) -> impl Future<Output = Response>;
     fn hostname(&self) -> &str;
     fn port(&self) -> &u16;
 }

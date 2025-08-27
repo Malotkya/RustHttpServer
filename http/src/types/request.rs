@@ -1,7 +1,10 @@
 use super::{Url, Headers, Method, Version, JsonValue, JsonRef, HttpError};
-use std::collections::HashMap;
-use std::fmt;
-use std::io::{BufReader, Read};
+use std::{
+    collections::HashMap,
+    io::BufReader,
+    fmt,
+    net::TcpStream
+};
 
 pub enum BodyDataType {
     File(FileData),
@@ -48,7 +51,7 @@ pub struct FileData {
     pub data: Vec<u8>
 }
 
-pub struct RequestBuilder<STREAM> where STREAM: Read {
+pub struct RequestBuilder<STREAM: std::io::Read> {
     pub url:Url,
     pub version:Version,
     pub method: Method,
@@ -58,11 +61,12 @@ pub struct RequestBuilder<STREAM> where STREAM: Read {
 }
 
 #[allow(dead_code)]
-impl<S> RequestBuilder<S> where S: Read{
-    pub(crate) fn new(url:Url, method:Method, headers:Headers, version:Version, buffer:Option<BufReader<S>> ) -> Self where S: Read {
+impl<S: std::io::Read> RequestBuilder<S> {
+    pub(crate) fn new(url:Url, method:Method, headers:Headers, version:Version, stream:Option<BufReader<S>>) -> Self{
         Self {
             url, method, headers,
-            version, buffer,
+            version,
+            buffer: stream,
             body_used: false
         }
     }
@@ -78,58 +82,60 @@ impl<S> RequestBuilder<S> where S: Read{
             }
         }
     }
+}
 
-    pub fn build<'b, P>(&'b mut self, param:P) -> Request<'b, S, P> {
+impl RequestBuilder<TcpStream> {
+    pub fn build<P>(&mut self, param:P) -> Request<P> {
         Request {
-            builder: self,
+            builder: std::ptr::from_mut(self),
             param
         }
     }
 
-    pub fn error<'b>(&'b mut self, err: HttpError) -> ErrorRequest<'b, S> {
+    pub fn error(&mut self, err: HttpError) -> ErrorRequest {
         Request {
-            builder: self,
+            builder: std::ptr::from_mut(self),
             param: err
         }
     }
 }
 
-impl<S: Read> fmt::Debug for RequestBuilder<S> {
+impl<S: std::io::Read> fmt::Debug for RequestBuilder<S> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{} {}", self.method.to_str(), self.url.pathname())
     }
 }
 
-pub type ErrorRequest<'builder, STREAM> = Request<'builder, STREAM, HttpError>;
+pub type ErrorRequest = Request<HttpError>;
 
-pub struct Request<'builder, STREAM, PARAM> where STREAM: Read {
-    builder: &'builder mut RequestBuilder<STREAM>,
+pub struct Request<PARAM> {
+    builder: *mut RequestBuilder<TcpStream>,
     pub param: PARAM
 }
 
-impl<'b, S, P> Request<'b, S, P> where S: Read{
+impl<P> Request<P>{
     pub fn url(&self) -> &Url {
-        &self.builder.url
+        unsafe{ &(*self.builder).url }
     }
 
     pub fn version(&self) -> &Version {
-        &self.builder.version
+        unsafe{ &(*self.builder).version }
     }
 
     pub fn headers(&self) -> &Headers {
-        &self.builder.headers
+        unsafe{ &(*self.builder).headers }
     }
 
     pub fn method(&self) -> &Method {
-        &self.builder.method
+        unsafe{ &(*self.builder).method }
     }
 
     pub fn body(&mut self) -> Result<Option<&[u8]>, &'static str> {
-        self.builder.body()
+        unsafe{ (*self.builder).body() }
     }
 
     pub fn data(&mut self) -> Result<Option<BodyData>, &'static str> {
-        match self.builder.body()? {
+        match self.body()? {
             Some(_) => todo!("Parse Body Data"),
             None => Ok(None)
         }
