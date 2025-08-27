@@ -1,43 +1,144 @@
-use crate::{RequestBuilder, Response, Version};
-use std::{io::Read, net::TcpStream};
+use crate::{http0, http1};
+use crate::{RequestBuilder, Response, HttpError, HttpErrorKind, Version};
+use std::{
+    io::Read,
+    net::{TcpListener, TcpStream}
+};
+pub use executor::Executor;
+use task::Task;
 
-mod http0;
-mod http1;
+mod executor;
+mod task;
+mod queue;
 
-pub enum RequestError {
-    ParseError(String),
-    IoError(std::io::Error)
+pub trait ServerParts {
+    fn handle_request(&self, req:&mut RequestBuilder<impl Read>) -> impl Future<Output = Response>;
+    fn hostname(&self) -> &str;
+    fn port(&self) -> &u16;
 }
 
-pub fn load_settings(_path:&'static str) -> (u16, String){
-    todo!("Ability to load from settings file.")
+pub struct Server<PARTS: ServerParts> {
+    pub(crate) parts: PARTS,
+    listener: TcpListener,
 }
 
-pub fn build_request<S>(stream:S, hostname:&str, port:u16) -> Result<RequestBuilder<S>, RequestError> where S: Read{
-    match http1::parse_request(stream, hostname, port) {
-        Ok(builder) => Ok(builder),
-        Err(e) => match e {
-            http1::BuildError::MissingVersion(method, uri) => {
-                http0::build(port, method, uri).map_err(|e|RequestError::ParseError(format!("{}", e)))
-            },
-            http1::BuildError::IoError(e) => Err(RequestError::IoError(e)),
-            err => Err(RequestError::ParseError(format!("{}", err)))
+impl<P: ServerParts> Server<P> {
+    pub fn connect(parts:P) -> std::io::Result<Self> {
+        let listener = TcpListener::bind(format!("127.0.0.1:{}", parts.port()))?;
+        listener.set_nonblocking(true)?;
+        Ok(
+            Self{
+                parts, listener,
+            }
+        )
+    }
+
+    pub fn next<'s>(&'s self) -> std::io::Result<Option<Task<'s>>> {
+        match self.listener.accept() {
+            Ok(connection) => Ok(
+                Some(Task::new(
+                    handle_connection(&self.parts, connection.0)
+                ))
+            ),
+            Err(e) => {
+                if e.kind() == std::io::ErrorKind::WouldBlock {
+                    Ok(None)
+                } else {
+                    Err(e)
+                }
+            }
         }
     }
 }
 
-pub fn write_connection_response(stream:&mut TcpStream, response: Response) -> Result<(), std::io::Error> {
+enum ConnectionError {
+    ParseError(String),
+    IoError(std::io::Error)
+}
+
+async fn handle_connection<P:ServerParts>(parts:&P, mut stream:TcpStream) -> task::Result {
+    let mut response = match stream.try_clone() {
+        Ok(stream) => stream,
+        Err(e) => {
+            write_connection_response(
+                &mut stream,
+                Response::from_error(
+                    HttpError::new(
+                        HttpErrorKind::InternalServerError,
+                        "An error occured while handeling the connection!"
+                    )
+                )
+            )?;
+            return Err(e);
+        }
+    };
+
+    let mut req_builder: RequestBuilder<TcpStream> = match build_request(stream, parts.hostname(), *parts.port()) {
+        Ok(req) => req,
+        Err(ConnectionError::IoError(e)) => {
+            write_connection_response(
+                &mut response,
+                Response::from_error(
+                    HttpError::new(
+                        HttpErrorKind::InternalServerError,
+                        &format!("{}", e)
+                    )
+                )
+            )?;
+            return Err(e)
+        },
+        Err(ConnectionError::ParseError(str)) => {
+            write_connection_response(
+                &mut response,
+                Response::from_error(
+                    HttpError::new(
+                        HttpErrorKind::BadRequest,
+                        &str
+                    )
+                )
+            )?;
+            return Ok(())
+        }
+    };
+
+    write_response(
+        &mut response,
+        parts.handle_request(&mut req_builder).await,
+        req_builder.version
+    )?;
+
+    Ok(())
+}
+
+fn build_request<S: Read>(stream:S, hostname:&str, port:u16) -> std::result::Result<RequestBuilder<S>, ConnectionError> {
+    match http1::parse_request(stream, hostname, port) {
+        Ok(builder) => Ok(builder),
+        Err(e) => match e {
+            http1::BuildError::MissingVersion(method, uri) => {
+                http0::build(port, method, uri).map_err(|e|ConnectionError::ParseError(format!("{}", e)))
+            },
+            http1::BuildError::IoError(e) => Err(ConnectionError::IoError(e)),
+            err => Err(ConnectionError::ParseError(format!("{}", err)))
+        }
+    }
+}
+
+fn write_connection_response(stream:&mut TcpStream, response: Response) -> task::Result {
     write_response(stream, response, Version {
         major: 1,
         minor: 1
     })
 }
 
-pub fn write_response(stream:&mut TcpStream, response:Response, version:Version) -> Result<(), std::io::Error> {
+fn write_response(stream:&mut TcpStream, response:Response, version:Version) -> task::Result {
     match version.major {
         0 => http0::write(response, stream),
         _ => http1::write_response(response, version, stream)
     }
+}
+
+pub fn load_settings(_path:&'static str) -> (u16, String){
+    todo!("Ability to load from settings file.") 
 }
 
 pub fn get_arguments() -> (Option<u16>, Option<String>) {
