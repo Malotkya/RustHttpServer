@@ -1,5 +1,3 @@
-use std::io::Read;
-
 mod error;
 pub use error::{HttpError, HttpErrorKind};
 mod headers;
@@ -19,11 +17,10 @@ pub use status::HttpStatus;
 mod url;
 pub use url::*;
 
-pub type Result<T, E: std::fmt::Display> = std::result::Result<T, E>;
+pub type Result = std::result::Result<Response, HttpError>;
 
 pub trait Router {
-    fn handle<S>(&self, req:RequestBuilder<S>) -> Result<Option<Response>, HttpError>
-        where S: Read;
+    fn handle(&self, req:&mut RequestBuilder<impl std::io::Read>) -> impl Future<Output = std::result::Result<Option<Response>, HttpError>>;
 }
 
 pub struct Version {
