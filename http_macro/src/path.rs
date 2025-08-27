@@ -413,21 +413,21 @@ pub fn build_path_types(name:&syn::Ident, keys:&Vec<String>) -> (TokenStream, us
         let field = syn::Ident::new(&keys[i], Span::call_site());
 
         fields.extend(quote!{
-            pub #field: &'a str,
+            pub #field: String,
         });
 
         constructor.extend(quote!{
-            #field: list[#i],
+            #field: list[#i].to_owned(),
         });
     }
 
     (quote! {
-        pub struct #name<'a> {
+        pub struct #name {
             #fields
         }
 
-        impl<'a> #name<'a> {
-            fn new(list: [&'a str; #length]) -> Self {
+        impl #name {
+            fn new(list: [&str; #length]) -> Self {
                 Self { #constructor }
             }
         }

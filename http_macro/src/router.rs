@@ -77,7 +77,7 @@ pub fn build_router(args:RouterAttributes, handler:syn::ItemFn) -> Result<TokenS
                     }
                 }
 
-                fn match_path<'a>(&self, pathname:&'a str) -> Option<#path_struct_name<'a>> {
+                fn match_path(&self, pathname:&str) -> Option<#path_struct_name> {
                     match self.path.captures(pathname) {
                         Some(caps) => {
                             let (_, list) = caps.extract() as (&str, [&str; #path_size]);
