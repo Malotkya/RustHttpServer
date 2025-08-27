@@ -55,6 +55,7 @@ pub fn build_router(args:RouterAttributes, handler:syn::ItemFn) -> Result<TokenS
     let hand_attr:Vec<_> = handler.sig.inputs.iter().collect();
     let hand_block = handler.block;
     let hand_return = handler.sig.output;
+    let hand_genics = handler.sig.generics;
 
     //panic!("{:?}", hand_return);
 
@@ -86,15 +87,15 @@ pub fn build_router(args:RouterAttributes, handler:syn::ItemFn) -> Result<TokenS
                     }
                 }
 
-                fn handler(&self, #(#hand_attr),* ) #hand_return{
+                async fn handler #hand_genics(&self, #(#hand_attr),* ) #hand_return{
                     #hand_block
                 }
             }
 
             impl http::Router for #name {
-                fn handle<'a>(&self, req:&'a mut http::RequestBuilder<'a>) -> Result<Option<http::Response>, http::HttpError> {
+                async fn handle(&self, req:&mut http::RequestBuilder<impl std::io::Read>) -> Result<Option<http::Response>, http::HttpError> {
                     match self.match_path(&req.url.pathname()) {
-                        Some(param) => self.handler(req.build(param)).map(|rsp|Some(rsp)),
+                        Some(param) => self.handler(req.build(param)).await.map(|rsp|Some(rsp)),
                         None => Ok(None)
                     }
                 }
