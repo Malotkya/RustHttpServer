@@ -1,7 +1,7 @@
 pub use http_macro::{router, server};
 
 #[router(path="/Hello/:Name")]
-async fn TestName(req: http::Request<TestNamePathParam>) -> Result<http::Response, http::HttpError> {
+async fn TestName(req: http::Request<TestNamePathParam>) -> http::Result {
     Ok(http::Response::from(format!("Hello {}!", req.param.Name)))
 }
 
@@ -10,10 +10,15 @@ async fn Home(_: http::Request<HomePathParam>) -> http::Result {
     Ok(http::Response::from("Hello World!"))
 }
 
+async fn error_handler(_:http::ErrorRequest) -> http::Response {
+    http::Response::from("You done messed up!")
+}
+
 #[server(5000)]
 struct ServerName (
     Home,
-    TestName
+    TestName,
+    error_handler
 );
 
 
