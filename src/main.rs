@@ -14,6 +14,9 @@ struct ServerName (
 fn main() {
     let server = ServerName::connect(ServerNameParts::new()).unwrap();
     let mut exec = http::Executor::new();
+
+    println!("Listening at: http://{}", server.to_string());
+
     loop {
         if let Some(task) = server.next().unwrap() {
             exec.spawn(task);
