@@ -48,14 +48,15 @@ pub struct FileData {
 }
 
 pub struct RequestBuilder<STREAM> where STREAM: Read {
-    pub(crate) url:Url,
-    pub(crate) version:Version,
-    pub(crate) method: Method,
-    pub(crate) headers: Headers,
+    pub url:Url,
+    pub version:Version,
+    pub method: Method,
+    pub headers: Headers,
     buffer: Option<BufReader<STREAM>>,
     body_used:bool
 }
 
+#[allow(dead_code)]
 impl<S> RequestBuilder<S> where S: Read{
     pub(crate) fn new(url:Url, method:Method, headers:Headers, version:Version, buffer:Option<BufReader<S>> ) -> Self where S: Read {
         Self {
