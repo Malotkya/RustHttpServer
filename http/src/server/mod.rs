@@ -104,22 +104,27 @@ async fn handle_connection<P:ServerParts>(parts:&P, mut stream:TcpStream) -> tas
             return Err(e)
         },
         Err(ConnectionError::ParseError(str)) => {
+            let message = Response::from_error(
+                HttpError::new(
+                    HttpErrorKind::BadRequest,
+                    &str
+                )
+            );
+            println!("??? * {:?}", message);
             write_connection_response(
                 &mut response,
-                Response::from_error(
-                    HttpError::new(
-                        HttpErrorKind::BadRequest,
-                        &str
-                    )
-                )
+                message
             )?;
             return Ok(())
         }
     };
 
+    let resp = parts.handle_request(&mut req_builder).await;
+    log(&req_builder, &resp);
+
     write_response(
         &mut response,
-        parts.handle_request(&mut req_builder).await,
+        resp,
         req_builder.version
     )?;
 
@@ -151,6 +156,10 @@ fn write_response(stream:&mut TcpStream, response:Response, version:Version) -> 
         0 => http0::write(response, stream),
         _ => http1::write_response(response, version, stream)
     }
+}
+
+fn log(req: &RequestBuilder<impl Read>, resp: &Response) {
+    println!("{:?} {:?}", req, resp);
 }
 
 pub fn load_settings(_path:&'static str) -> (u16, String){

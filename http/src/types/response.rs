@@ -1,5 +1,5 @@
 use crate::{Headers, HttpError, HttpStatus, Json};
-use std::{collections::LinkedList};
+use std::{collections::LinkedList, fmt};
 
 pub enum Chunk{
     Owned(Vec<u8>),
@@ -11,6 +11,15 @@ impl Chunk {
         match self {
             Self::Owned(v) => v,
             Self::String(s) => s.as_bytes()
+        }
+    }
+}
+
+impl ToString for Chunk {
+    fn to_string(&self) -> String {
+        match self {
+            Self::String(s) => s.clone(),
+            Self::Owned(v) => unsafe{ String::from_utf8_unchecked(v.clone()) }
         }
     }
 }
@@ -153,5 +162,32 @@ impl Response {
             body,
             sent: false
         }
+    }
+}
+
+impl ToString for Response {
+    fn to_string(&self) -> String {
+        self.body.iter()
+            .map(|chunk|chunk.to_string())
+            .collect::<Vec<String>>().join("")
+    }
+}
+
+impl fmt::Debug for Response {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let message = if self.status.code() >= 400 {
+            match self.headers.get("Content-Type") {
+                Some(value) => if value.ref_str().unwrap().to_lowercase().find("application").is_some() {
+                    self.status.as_str().to_owned()
+                } else {
+                    self.to_string()
+                },
+                None => self.to_string()
+            }
+        } else {
+            self.status.as_str().to_owned()
+        };
+
+        write!(f, "{} {}", self.status.code(), message)
     }
 }

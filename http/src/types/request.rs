@@ -1,5 +1,6 @@
 use super::{Url, Headers, Method, Version, JsonValue, JsonRef, HttpError};
 use std::collections::HashMap;
+use std::fmt;
 use std::io::{BufReader, Read};
 
 pub enum BodyDataType {
@@ -90,6 +91,12 @@ impl<S> RequestBuilder<S> where S: Read{
             builder: self,
             param: err
         }
+    }
+}
+
+impl<S: Read> fmt::Debug for RequestBuilder<S> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{} {}", self.method.to_str(), self.url.pathname())
     }
 }
 

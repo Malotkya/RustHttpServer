@@ -5,6 +5,7 @@
 /// 
 
 #[derive(Clone, Copy, PartialEq, Eq)]
+#[repr(u8)]
 pub enum Method {
     OPTIONS,
     GET,
@@ -41,6 +42,20 @@ impl Method {
                 Some(Self::PATCH)
             },
             _ => None
+        }
+    }
+
+    pub fn to_str(&self) -> &'static str {
+        match self {
+            Self::OPTIONS => "OPTIONS",
+            Self::GET => "GET",
+            Self::HEAD => "HEAD",
+            Self::POST => "POST",
+            Self::PUT => "PUT",
+            Self::DELETE => "DELETE",
+            Self::TRACE => "TRACE",
+            Self::CONNECT => "CONNECT",
+            Self::PATCH => "PATCH"
         }
     }
 }
