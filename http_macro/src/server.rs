@@ -147,22 +147,23 @@ fn build_new_function(args:&ServerArguments, routers:&Vec<syn::Ident>) -> (Token
     )
 }
 
-fn build_error_handler(func:Option<syn::ItemFn>) -> TokenStream {
+fn build_error_handler(func:&Option<syn::ItemFn>) -> TokenStream {
     match func {
         Some(func) => {
-            let error_args = func.sig.inputs;
-            let error_block = func.block;
-            let error_return = func.sig.output;
+            let error_args = &func.sig.inputs;
+            let error_block = &func.block;
+            let error_return = &func.sig.output;
+            let error_genics = &func.sig.generics;
 
             quote! {
-                pub fn error_handler(&self, #error_args) #error_return {
+                async fn error_handler #error_genics(&self, #error_args) #error_return {
                     #error_block
                 }
             }
         },
         None => quote!{
-            pub fn error_handler<'body>(&self, _: http::ErrorRequest<'body>, err: http::HttpError) -> http::Response {
-                http::Response::from_error(err)
+            async fn error_handler<'a>(&self, req:http::ErrorRequest<'a, impl std::io::Read>) -> http::Response {
+                http::Response::from_error(req.param)
             }
         }
     }
@@ -173,14 +174,14 @@ fn build_handler(routers:&Vec<syn::Ident>) -> TokenStream {
 
     for r in routers {
         handle_router.extend(quote!{
-            if let Some(resp) = self.#r.handle(req_builder)? {
+            if let Some(resp) = self.#r.handle(builder).await? {
                 return Ok(resp)
             }
         });
     }
 
     quote!{
-        pub fn handle<'body, 'a>(&'body self, req_builder: &'a mut http::RequestBuilder<'body>) -> Result<http::Response, http::HttpError> {
+        async fn handle(&self, builder:&mut http::RequestBuilder<impl std::io::Read>) -> http::Result {
             use http::Router;
             #handle_router
 
@@ -189,7 +190,7 @@ fn build_handler(routers:&Vec<syn::Ident>) -> TokenStream {
     }
 }
 
-pub fn build_server(args:ServerArguments, att:ServerAttributes) -> TokenStream {
+fn build_server_layers(args:&ServerArguments, att:&ServerAttributes) -> (TokenStream, syn::Ident, syn::Ident) {
     let (new_func, names) = build_new_function(&args, &att.routers);
     let mut att_names = quote!();
     for i in 0..names.len() {
@@ -200,35 +201,63 @@ pub fn build_server(args:ServerArguments, att:ServerAttributes) -> TokenStream {
         });
     }
 
-    let struct_start = if att.public {
-        quote!{pub struct}
-    } else {
-        quote!{struct}
-    };
-
-    let struct_name = att.name;
+    let struct_name = &att.name;
+    let layers_name = syn::Ident::new(
+        &(struct_name.to_string() + "Parts"),
+        Span::call_site()
+    );
     let handler = build_handler(&names);
-    let error_handler = build_error_handler(att.err_handler);
+    let error_handler = build_error_handler(&att.err_handler);
 
-    quote!{
-        #struct_start #struct_name {
+    (quote!{
+        struct #layers_name {
             port: u16,
             hostname: String,
             #att_names
         }
 
-        impl #struct_name {
+        impl #layers_name {
             #new_func
 
+            #handler
 
+            #error_handler
+        }
 
-            pub fn hostname(&self) -> &str {
+        impl http::ServerParts for #layers_name {
+            fn hostname(&self) -> &str {
                 &self.hostname
             }
 
-            pub fn port(&self) -> u16 {
-                self.port
+            fn port(&self) -> &u16 {
+                &self.port
+            }
+
+            async fn handle_request(&self, req:&mut http::RequestBuilder<impl std::io::Read>) -> http::Response {
+                match self.handle(req).await {
+                    Ok(resp) => resp,
+                    Err(e) => self.error_handler(req.error(e)).await
+                }
             }
         }
+    },
+    struct_name.clone(),
+    layers_name
+    )
+}
+
+pub fn build_server(args:ServerArguments, att:ServerAttributes) -> TokenStream {
+    let (parts, name, parts_name) = build_server_layers(&args, &att);
+
+    let struct_start = if att.public {
+        quote!{pub type}
+    } else {
+        quote!{type}
+    };
+
+    quote!{
+        #parts
+
+        #struct_start #name = http::Server<#parts_name>;
     }
 }
