@@ -61,15 +61,22 @@ macro_rules! tokenizer_iterator {
                 self.ptr.at(self.index)
             }
 
-            fn get_text(&mut self) -> Option<Text> {
+            fn get_text(&mut self, iter:bool) -> Option<Text> {
                 if self.text_start < self.index {
                     let t = Text{
-                        ptr: self.ptr.ptr(self.index),
+                        ptr: self.ptr.ptr(self.text_start),
                         size: self.index - self.text_start
                     };
+                    if iter {
+                        self.index += 1;
+                    }
                     self.text_start = self.index;
                     Some(t)
                 } else {
+                    if iter {
+                        self.index += 1;
+                        self.text_start = self.index;
+                    }
                     None
                 }
             }
@@ -83,16 +90,20 @@ impl<'a, T> Iterator for SplitIterator<'a, T> where T: Tokenizer{
 
     fn next(&mut self) -> Option<Text> {
         while let Some(value) = self.peek() {
-            if *value < 32 || *value > 126 {
-                let t = self.get_text();
-                self.index += 1;
-                return t;
+            if *value <= 32 || *value > 126 {
+                match self.get_text(false) {
+                    Some(t) => return Some(t),
+                    None => {
+                        self.index += 1;
+                        self.text_start = self.index;
+                    }
+                }
             } else {
                 self.index += 1;
             }
         }
 
-        self.get_text()
+        self.get_text(true)
     }
 }
 
@@ -107,28 +118,31 @@ impl<'a, T> Iterator for TokenIterator<'a, T>
         }
 
         while let Some(value) = self.peek() {
-            let t = if *value < 32 || *value > 126 {
-                self.get_text()
+            let t = if *value <= 32 || *value > 126 {
+                self.get_text(true)
             } else if let Some(sep) = Seperator::from(*value as char) {
                 self.back_log.push_back(Tokens::Seperator(sep));
-                self.get_text()
+                self.get_text(true)
             } else {
+                self.index += 1;
                 None
             };
 
-            self.index += 1;
+            
 
-            if t.is_some() {
-                return Some(Tokens::Text(t.unwrap()));
-            } else {
-                return self.back_log.pop_front();
+            match t {
+                Some(text) => return Some(Tokens::Text(text)),
+                None => match self.back_log.pop_front() {
+                    Some(token) => return Some(token),
+                    None => continue
+                }
             }
         }
 
-        match self.get_text() {
-            Some(t) => Some(
-                Tokens::Text(t)
-            ),
+        match self.get_text(true) {
+            Some(t) => {
+                Some(Tokens::Text(t))
+            },
             None => None
         }
     }
@@ -143,7 +157,7 @@ pub enum Tokens {
 #[derive(Debug, Clone)]
 pub enum TokenError {
     MismatchError(Seperator, Seperator),
-    SeperatorError(Option<Seperator>, Text),
+    SeperatorError(Option<Seperator>, String),
     TextError(Option<&'static str>, Seperator)
 }
 
@@ -200,7 +214,7 @@ impl Tokens {
                     }
                 }
             },
-            Self::Text(txt) => Err(TokenError::SeperatorError(expect, txt.clone()))
+            Self::Text(txt) => Err(TokenError::SeperatorError(expect, txt.as_str().to_string()))
         }
     }
 
@@ -311,7 +325,7 @@ impl Tokenizer for Text {
     }
 
     fn at(&self, index:usize) -> Option<&u8> {
-        if index > self.size {
+        if index >= self.size {
             None
         } else {
             unsafe {
