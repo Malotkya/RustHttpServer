@@ -22,15 +22,31 @@ pub struct Server<PARTS: ServerParts> {
     listener: TcpListener,
 }
 
+impl<P:ServerParts> ToString for Server<P> {
+    fn to_string(&self) -> String {
+        self.listener.local_addr().unwrap().to_string()
+    }
+}
+
 impl<P: ServerParts> Server<P> {
     pub fn connect(parts:P) -> std::io::Result<Self> {
-        let listener = TcpListener::bind(format!("127.0.0.1:{}", parts.port()))?;
+        let listener = TcpListener::bind(
+            format!("{}:{}", parts.hostname(), *parts.port())
+        )?;
         listener.set_nonblocking(true)?;
         Ok(
             Self{
                 parts, listener,
             }
         )
+    }
+
+    pub fn port(&self) -> &u16 {
+        self.parts.port()
+    }
+
+    pub fn hostname(&self) -> &str {
+        self.parts.hostname()
     }
 
     pub fn next<'s>(&'s self) -> std::io::Result<Option<Task<'s>>> {
