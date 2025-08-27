@@ -42,13 +42,13 @@ pub(crate) struct ServerAttributes {
     public: bool,
     name: syn::Ident,
     routers: Vec<syn::Ident>,
-    err_handler: Option<syn::ItemFn>
+    err_handler: Option<syn::Ident>
 }
 
 impl Parse for ServerAttributes {
     fn parse(input: ParseStream) -> syn::Result<Self> {
         let public = if input.peek(syn::token::Pub) {
-            input.parse::<syn::token::Pub>()?;
+            input.parse::<syn::token::Pub>()?;();
             true
         } else {
             false
@@ -64,16 +64,14 @@ impl Parse for ServerAttributes {
         input.parse::<syn::Token![;]>()?;
 
         while !fields.peek(syn::parse::End) {
-            if fields.peek(syn::Ident) {
-                routers.push(fields.parse()?)
-            } else if fields.peek(syn::token::Fn) {
-                err_handler = Some(fields.parse()?);
+
+            let name = fields.parse::<syn::Ident>()?;
+
+            if is_snake_case(&name) {
+                err_handler = Some(name);
                 break;
             } else {
-                return Err(syn::Error::new(
-                    fields.span(),
-                    "Expected either a router identifier or error handler function!"
-                ));
+                routers.push(name);
             }
 
             if !fields.peek(syn::parse::End) {
@@ -106,6 +104,16 @@ fn snake_case(name:&syn::Ident) -> syn::Ident {
         },
         Span::call_site(),
     )
+}
+
+fn is_snake_case(name:&syn::Ident) -> bool {
+    for c in name.to_string().chars() {
+        if c.is_uppercase() {
+            return false;
+        }
+    }
+
+    return true;
 }
 
 fn build_new_function(args:&ServerArguments, routers:&Vec<syn::Ident>) -> (TokenStream, Vec<syn::Ident>) {
@@ -147,24 +155,15 @@ fn build_new_function(args:&ServerArguments, routers:&Vec<syn::Ident>) -> (Token
     )
 }
 
-fn build_error_handler(func:&Option<syn::ItemFn>) -> TokenStream {
-    match func {
-        Some(func) => {
-            let error_args = &func.sig.inputs;
-            let error_block = &func.block;
-            let error_return = &func.sig.output;
-            let error_genics = &func.sig.generics;
+fn build_error_handler(func:&Option<syn::Ident>) -> TokenStream {
+    let block = match func {
+        Some(func) => quote!(#func(req).await),
+        None => quote!(http::Response::from_error(req.param))
+    };
 
-            quote! {
-                async fn error_handler #error_genics(&self, #error_args) #error_return {
-                    #error_block
-                }
-            }
-        },
-        None => quote!{
-            async fn error_handler(&self, req:http::ErrorRequest) -> http::Response {
-                http::Response::from_error(req.param)
-            }
+    quote!{
+        async fn error_handler(&self, req:http::ErrorRequest) -> http::Response {
+            #block
         }
     }
 }
