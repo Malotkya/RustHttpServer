@@ -5,7 +5,7 @@ use quote::quote;
 
 pub(crate) struct RouterAttributes {
     path: String,
-    //default = false
+    //default = true
     path_end:bool,
     //defailt = false
     path_trailing:bool,
@@ -22,7 +22,7 @@ impl Parse for RouterAttributes {
         let map = super::util::InputParser::new(input);
 
         let path = map.get_string("path").unwrap();
-        let path_end = map.get_bool("path_end").unwrap_or(false);
+        let path_end = map.get_bool("path_end").unwrap_or(true);
         let path_trailing = map.get_bool("path_trailing").unwrap_or(false);
         let path_insensitive = map.get_bool("path_insensitive").unwrap_or(true);
         let methods = map.get_string("methods").unwrap_or(String::from("ALL"));
