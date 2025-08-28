@@ -51,7 +51,7 @@ pub fn build_router(args:RouterAttributes, handler:syn::ItemFn) -> Result<TokenS
         &path_struct_name,
         &keys
     );
-
+    let public = handler.vis;
     let hand_attr:Vec<_> = handler.sig.inputs.iter().collect();
     let hand_block = handler.block;
     let hand_return = handler.sig.output;
@@ -69,7 +69,7 @@ pub fn build_router(args:RouterAttributes, handler:syn::ItemFn) -> Result<TokenS
         quote! {
             #path_struct
 
-            struct #name {
+            #public struct #name {
                 path:regex::Regex,
                 methods:&'static str//Vec<&'static str>
             }
