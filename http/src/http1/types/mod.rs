@@ -107,6 +107,10 @@ impl Tokenizer for Chunk {
         }
     }
 
+    fn decode(&self) -> String {
+        tokens::decode(&self.0)
+    }
+
     fn len(&self) -> usize {
         self.0.len()
     }

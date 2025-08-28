@@ -7,6 +7,7 @@ pub trait Tokenizer: Sized {
     fn ptr(&self, index:usize) -> *mut u8;
     fn split<'a>(&'a self) -> SplitIterator<'a, Self>;
     fn tokenize<'a>(&'a self) -> TokenIterator<'a, Self>;
+    fn decode(&self) -> String;
 }
 
 macro_rules! tokenizer_iterator {
@@ -309,15 +310,13 @@ pub struct Text {
     size: usize
 }
 
-impl ToString for Text {
-    fn to_string(&self) -> String {
-        String::from(self.as_str())
-    }
-}
-
 impl Tokenizer for Text {
     fn as_str<'a>(&'a self) -> &'a str {
         unsafe { std::str::from_raw_parts(self.ptr, self.size) }
+    }
+
+    fn decode(&self) -> String {
+        decode(self.as_str().as_bytes())
     }
 
     fn len(&self) -> usize {
@@ -347,3 +346,51 @@ impl Tokenizer for Text {
     }
 }
 
+pub(crate) fn decode(slice: &[u8]) -> String {
+    let mut output = String::with_capacity(slice.len());
+    let mut it = slice.iter();
+
+    while let Some(b) = it.next() {
+        match b {
+            b'%' => match decode_char(it.next()) {
+                Some(Ok(first)) => match decode_char(it.next()) {
+                    Some(Ok(second)) => {
+                        let value = (first << 4) | second;
+                        output.push(value as char);
+                    },
+                    Some(Err(value)) => {
+                        output.push('%');
+                        output.push(first as char);
+                        output.push(value as char);
+                    },
+                    None => {
+                        output.push('%');
+                        output.push(first as char);
+                    }
+                }
+                Some(Err(value)) => {
+                    output.push('%');
+                    output.push(value as char);
+                }
+                None => output.push('%')
+            },
+            _ => output.push(*b as char)
+        }
+    }
+
+    output
+}
+
+fn decode_char(char:Option<&u8>) -> Option<Result<u8, u8>> {
+    match char {
+        Some(byte) => {
+            match *byte {
+                b'0'..=b'9' => Some(Ok(*byte - b'0')),
+                b'A'..=b'F' => Some(Ok(*byte - b'A' + 10)),
+                b'a'..=b'f' => Some(Ok(*byte - b'a' + 10)),
+                _ => Some(Err(*byte)),
+            }
+        },
+        None => None
+    }
+}
