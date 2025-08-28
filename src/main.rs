@@ -14,27 +14,15 @@ async fn error_handler(_:http::ErrorRequest) -> http::Response {
     http::Response::from("You done messed up!")
 }
 
-#[server(5000)]
-struct ServerName (
+#[server(port=8080, is_async=true)]
+struct ServerName ( 
     Home,
     TestName,
     error_handler
 );
 
-
 fn main() {
-    let server = ServerName::connect(ServerNameParts::new()).unwrap();
-    let mut exec = http::Executor::new();
-
-    println!("Listening at: http://{}", server.to_string());
-
-    loop {
-        if let Some(task) = server.next().unwrap() {
-            exec.spawn(task);
-        }
-
-        exec.run_ready_tasks();
-        //exec.sleep_if_idle();
-    }
+    ServerName::start()
+        .expect("There was a problem starting the server!");
 }
  
