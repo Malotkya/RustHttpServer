@@ -175,19 +175,6 @@ impl ToString for Response {
 
 impl fmt::Debug for Response {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let message = if self.status.code() >= 400 {
-            match self.headers.get("Content-Type") {
-                Some(value) => if value.ref_str().unwrap().to_lowercase().find("application").is_some() {
-                    self.status.as_str().to_owned()
-                } else {
-                    self.to_string()
-                },
-                None => self.to_string()
-            }
-        } else {
-            self.status.as_str().to_owned()
-        };
-
-        write!(f, "{} {}", self.status.code(), message)
+        write!(f, "{} {}", self.status.code(), self.status.as_str())
     }
 }
