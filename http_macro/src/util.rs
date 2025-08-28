@@ -2,6 +2,37 @@ use std::collections::HashMap;
 use proc_macro2::Span;
 use syn::parse::ParseStream;
 use syn::Error;
+use paste::paste;
+
+macro_rules! get_value {
+    ($type:ty, $name:ident, $error:literal) => {
+        paste!{
+            get_value!($type, $name, $error, |x:&syn::[<Lit $name>]|->Result<$type, syn::Error> {Ok(x.value())});
+        }
+    };
+    ($type:ty, $name:ident, $error:literal, $helper:expr) => {
+        paste!{
+            pub fn [<get_ $type:lower>](&self, key:&str) -> Result<$type, syn::Error>{
+                match self.0.get(key) {
+                Some(literal) => match literal {
+                    syn::Lit::$name(v) => Ok($helper(v)?),
+                    _ => Err(
+                        Error::new(
+                            literal.span(),
+                            format!("Expected {} for {}!", $error, key)
+                        )
+                    )
+                },
+                None => Err(
+                    Error::new(
+                        Span::call_site(),
+                        format!("Missing {} for {}!", $error, key))
+                    )
+                }
+            }
+        }
+    };
+}
 
 pub struct InputParser(HashMap<String, syn::Lit>);
 
@@ -26,28 +57,8 @@ impl InputParser {
         }
     }
 
-    pub fn get_string<'a>(&self, key:&'a str) -> Result<String, syn::Error> {
-        match self.0.get(key) {
-            Some(literal) => {
-                match literal {
-                    syn::Lit::Str(str) => Ok(str.value()),
-                    _ => Err(Error::new(literal.span(), format!("Expected a stirng literal for {}!", key)))
-                }
-            },
-            None => Err(Error::new(Span::call_site(), format!("Missing string literal for {}!", key)))
-        }
-    }
-
-    pub fn get_bool<'a>(&self, key:&'a str) -> Result<bool, syn::Error> {
-        match self.0.get(key) {
-            Some(literal) => {
-                match literal {
-                    syn::Lit::Bool(bool) => Ok(bool.value()),
-                    _ => Err(Error::new(literal.span(), format!("Expected a boolean for {}!", key)))
-                }
-            },
-            None => Err(Error::new(Span::call_site(), format!("Missing boolean for {}!", key)))
-        }
-    }
+    get_value!(String, Str, "string literal");
+    get_value!(bool, Bool, "boolean");
+    get_value!(u16, Int, "u16", |x: &syn::LitInt|x.base10_parse());
 
 }
