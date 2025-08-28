@@ -37,24 +37,24 @@ macro_rules! get_value {
 pub struct InputParser(HashMap<String, syn::Lit>);
 
 impl InputParser {
-    pub fn new(input:ParseStream) -> Self{
+    pub fn new(input:ParseStream) -> Result<Self, syn::Error>{
         let mut map:HashMap<String, syn::Lit> = HashMap::new();
 
         loop {
-            let key: syn::Ident = input.parse().unwrap();
-            let _: syn::Token![=] = input.parse().unwrap();
-            let value: syn::Lit = input.parse().unwrap();
+            let key: syn::Ident = input.parse()?;
+            let _: syn::Token![=] = input.parse()?;
+            let value: syn::Lit = input.parse()?;
 
             map.insert(key.to_string(), value);
 
             if input.is_empty() {
                 break;
+            } else {
+                input.parse::<syn::Token![,]>()?;
             }
         }
 
-        Self {
-            0: map
-        }
+        Ok(Self(map))
     }
 
     get_value!(String, Str, "string literal");
