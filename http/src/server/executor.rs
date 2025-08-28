@@ -54,6 +54,7 @@ impl<'t> Executor<'t> {
         }
     }
 
+    #[allow(dead_code)]
     pub fn sleep_if_idle(&self) {
         use x86_64::instructions::interrupts::{self, enable_and_hlt};
         
