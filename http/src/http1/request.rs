@@ -62,7 +62,7 @@ pub fn parse_request<S>(stream:S, hostname:&str, port:u16) -> Result<RequestBuil
         Some(t) => match Method::from(t.as_str()) {
             Some(m) => m,
             None => return Err(
-                BuildError::InvalidMethod(t.to_string())
+                BuildError::InvalidMethod(t.decode())
             )
         },
         None => return Err(BuildError::MissingMethod)
@@ -84,7 +84,7 @@ pub fn parse_request<S>(stream:S, hostname:&str, port:u16) -> Result<RequestBuil
         Some(t) => match parse_version(&t) {
             Ok(v) => v,
             Err(_) => return Err(
-                BuildError::InvalidVersion(t.to_string())
+                BuildError::InvalidVersion(t.decode())
             )
         }
         None => return Err(

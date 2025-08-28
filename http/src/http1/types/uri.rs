@@ -188,13 +188,13 @@ impl Authority {
     }
 
     fn hostname(&self) -> Hostname {
-        self.host.to_string().into()
+        self.host.decode().into()
     }
 
     fn auth(&self) -> Option<(String, String)> {
         match &self.user {
             Some(value) =>{
-                let str = value.to_string();
+                let str = value.decode();
                 match str.find(":") {
                     Some(index) => Some((
                         String::from(&str[..index]),
@@ -301,7 +301,7 @@ impl AbsPath {
     }
 
     fn collect(&self) -> Vec<String> {
-        self.0.iter().map(|t|t.to_string()).collect()
+        self.0.iter().map(|t|t.decode()).collect()
     }
 }
 
@@ -439,7 +439,7 @@ impl ToUrl for AbsUri {
             Url::new(default_hostname, default_port, self.path.collect())
         };
 
-        url.protocol = self.scheme.to_string().try_into()?;
+        url.protocol = self.scheme.decode().try_into()?;
         
         let length = self.query.len();
         let mut key = String::new();
