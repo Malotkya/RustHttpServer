@@ -2,39 +2,29 @@ use proc_macro2::{Span, TokenStream};
 use syn::parse::{Parse, ParseStream};
 use quote::quote;
 
-pub(crate) enum ServerArguments {
-    CmdLineArgs,
-    ConfigFile(String),
-    // defualt(port, hostname),
-    // hostname = "127.0.0.1"
-    HardCode(u16, String)
+pub(crate) struct ServerArguments {
+    //default = None
+    config: Option<String>,
+    //default = 5000
+    port: u16,
+    //default = "127.0.0.1"
+    hostname: String,
+    //default = false
+    is_async: bool
 }
 
 impl Parse for ServerArguments {
     fn parse(input:ParseStream) -> syn::Result<Self> {
-        if input.peek(syn::LitInt) {
-            let port: syn::LitInt = input.parse()?;
-            let hostname = if input.peek(syn::Token![,]) {
-                input.parse::<syn::Token![,]>()?;
-                input.parse::<syn::LitStr>()?.value()
-            } else {
-                String::from("127.0.0.1")
-            };
+        let map = super::util::InputParser::new(input);
 
-            Ok (
-                Self::HardCode(port.base10_parse()?, hostname)
-            )
-        } else if input.peek(syn::LitStr) {
-            let filename: syn::LitStr = input.parse()?;
-            Ok (
-                Self::ConfigFile(filename.value())
-            )
-        } else {
-            input.parse::<syn::parse::Nothing>()?;
-            Ok (
-                Self::CmdLineArgs
-            )
-        }
+        let config = map.get_string("config").ok();
+        let port = map.get_u16("port").unwrap_or(5000);
+        let hostname = map.get_string("hostname").unwrap_or(String::from("127.0.0.1"));
+        let is_async = map.get_bool("async").unwrap_or(false);
+
+        Ok(
+            Self { config, port, hostname, is_async }
+        )
     }
 }
 
@@ -119,20 +109,31 @@ fn is_snake_case(name:&syn::Ident) -> bool {
 fn build_new_function(args:&ServerArguments, routers:&Vec<syn::Ident>) -> (TokenStream, Vec<syn::Ident>) {
     let mut names = quote!();
     let mut list = Vec::new();
-    let arguments = match args {
-        ServerArguments::CmdLineArgs => quote!{
-            let args = http::server::get_arguments();
-            let port = args.0.unwrap();
-            let hostname = args.1.unwrap();
-        },
-        ServerArguments::ConfigFile(filename) => quote! {
-            let (port, hostname) = http::server::load_settings(#filename);
-        },
-        ServerArguments::HardCode(port, hostname) => quote! {
-            let port:u16 = #port;
-            let hostname = String::from(#hostname);
-        }
+    let mut arguments = quote!{
+        let (mut port, mut hostname, config_file) = http::get_arguments();
     };
+
+    if args.config.is_some() {
+        let file_name = args.config.as_ref().unwrap();
+        arguments.extend(quote!{
+            let config_file = config_file.or(Some(String::from(#file_name)));
+        });
+    }
+
+    let port = args.port;
+    let hostname = &args.hostname;
+    arguments.extend(quote!{
+        if config_file.is_some() {
+            let (config_port, config_hostname) = http::load_settings(&config_file.unwrap());
+            port = port.or(config_port);
+            hostname = hostname.or(config_hostname); 
+        }
+
+        let port = port.unwrap_or(#port);
+        let hostname = hostname.unwrap_or(
+            String::from(#hostname)
+        );
+    });
 
     for name in routers {
         let struct_name = snake_case(name);
