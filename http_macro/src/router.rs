@@ -19,7 +19,7 @@ pub(crate) struct RouterAttributes {
 impl Parse for RouterAttributes {
 
     fn parse(input:ParseStream) -> Result<Self> {
-        let map = super::util::InputParser::new(input);
+        let map = super::util::InputParser::new(input)?;
 
         let path = map.get_string("path").unwrap();
         let path_end = map.get_bool("path_end").unwrap_or(true);
@@ -56,6 +56,12 @@ pub fn build_router(args:RouterAttributes, handler:syn::ItemFn) -> Result<TokenS
     let hand_block = handler.block;
     let hand_return = handler.sig.output;
     let hand_genics = handler.sig.generics;
+    let async_call = handler.sig.asyncness;
+    let await_call = if async_call.is_some() {
+        quote!(.await)
+    } else {
+        quote!()
+    };
 
     //panic!("{:?}", hand_return);
 
@@ -87,7 +93,7 @@ pub fn build_router(args:RouterAttributes, handler:syn::ItemFn) -> Result<TokenS
                     }
                 }
 
-                async fn handler #hand_genics(&self, #(#hand_attr),* ) #hand_return{
+                #async_call fn handler #hand_genics(&self, #(#hand_attr),* ) #hand_return{
                     #hand_block
                 }
             }
@@ -95,7 +101,7 @@ pub fn build_router(args:RouterAttributes, handler:syn::ItemFn) -> Result<TokenS
             impl http::Router for #name {
                 async fn handle(&self, req:&mut http::RequestBuilder<std::net::TcpStream>) -> Result<Option<http::Response>, http::HttpError> {
                     match self.match_path(&req.url.pathname()) {
-                        Some(param) => self.handler(req.build(param)).await.map(|rsp|Some(rsp)),
+                        Some(param) => self.handler(req.build(param))#await_call.map(|rsp|Some(rsp)),
                         None => Ok(None)
                     }
                 }
