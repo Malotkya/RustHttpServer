@@ -15,12 +15,12 @@ pub(crate) struct ServerArguments {
 
 impl Parse for ServerArguments {
     fn parse(input:ParseStream) -> syn::Result<Self> {
-        let map = super::util::InputParser::new(input);
+        let map = super::util::InputParser::new(input)?;
 
         let config = map.get_string("config").ok();
         let port = map.get_u16("port").unwrap_or(5000);
         let hostname = map.get_string("hostname").unwrap_or(String::from("127.0.0.1"));
-        let is_async = map.get_bool("async").unwrap_or(false);
+        let is_async = map.get_bool("is_async").unwrap_or(false);
 
         Ok(
             Self { config, port, hostname, is_async }
@@ -144,7 +144,7 @@ fn build_new_function(args:&ServerArguments, routers:&Vec<syn::Ident>) -> (Token
 
     (
         quote!{
-            pub fn new() -> Self {
+            fn new() -> Self {
                 #arguments
                 Self {
                     port, hostname,
@@ -156,36 +156,62 @@ fn build_new_function(args:&ServerArguments, routers:&Vec<syn::Ident>) -> (Token
     )
 }
 
-fn build_error_handler(func:&Option<syn::Ident>) -> TokenStream {
+fn build_error_handler(func:&Option<syn::Ident>, async_handle:&TokenStream, await_handle:&TokenStream) -> TokenStream {
     let block = match func {
-        Some(func) => quote!(#func(req).await),
+        Some(func) => quote!(#func(req)#await_handle),
         None => quote!(http::Response::from_error(req.param))
     };
 
     quote!{
-        async fn error_handler(&self, req:http::ErrorRequest) -> http::Response {
+        #async_handle fn error_handler(&self, req:http::ErrorRequest) -> http::Response {
             #block
         }
     }
 }
 
-fn build_handler(routers:&Vec<syn::Ident>) -> TokenStream {
+fn build_handler(routers:&Vec<syn::Ident>, async_handle:&TokenStream, await_handle:&TokenStream) -> TokenStream {
     let mut handle_router = quote!();
 
     for r in routers {
         handle_router.extend(quote!{
-            if let Some(resp) = self.#r.handle(builder).await? {
+            if let Some(resp) = self.#r.handle(builder)#await_handle? {
                 return Ok(resp)
             }
         });
     }
 
     quote!{
-        async fn handle(&self, builder:&mut http::RequestBuilder<std::net::TcpStream>) -> http::Result {
+        #async_handle fn handle(&self, builder:&mut http::RequestBuilder<std::net::TcpStream>) -> http::Result {
             use http::Router;
             #handle_router
 
             Err(http::HttpErrorKind::NotFound.into())
+        }
+    }
+}
+
+fn build_async_layer(name:&syn::Ident) -> TokenStream {
+    quote!{
+        impl http::AsyncParts for  #name {
+            async fn handle_request(&self, req:&mut http::RequestBuilder<std::net::TcpStream>) -> http::Response {
+                match self.handle(req).await {
+                    Ok(resp) => resp,
+                    Err(e) => self.error_handler(req.error(e)).await
+                }
+            }
+        }
+    }
+}
+
+fn build_sync_layer(name:&syn::Ident) -> TokenStream {
+    quote!{
+        impl http::SyncParts for  #name {
+            fn handle_request(&self, req:&mut http::RequestBuilder<std::net::TcpStream>) -> http::Response {
+                match self.handle(req) {
+                    Ok(resp) => resp,
+                    Err(e) => self.error_handler(req.error(e))
+                }
+            }
         }
     }
 }
@@ -206,8 +232,13 @@ fn build_server_layers(args:&ServerArguments, att:&ServerAttributes) -> (TokenSt
         &(struct_name.to_string() + "Parts"),
         Span::call_site()
     );
-    let handler = build_handler(&names);
-    let error_handler = build_error_handler(&att.err_handler);
+    let (async_handle, await_handle, async_sync_layer) = if args.is_async {
+        (quote!(async), quote!(.await), build_async_layer(&layers_name))
+    } else {
+        (quote!(), quote!(), build_sync_layer(&layers_name))
+    };
+    let handler = build_handler(&names, &async_handle, &await_handle);
+    let error_handler = build_error_handler(&att.err_handler, &async_handle, &await_handle);
 
     (quote!{
         struct #layers_name {
@@ -217,14 +248,14 @@ fn build_server_layers(args:&ServerArguments, att:&ServerAttributes) -> (TokenSt
         }
 
         impl #layers_name {
-            #new_func
-
             #handler
 
             #error_handler
         }
 
         impl http::ServerParts for #layers_name {
+            #new_func
+
             fn hostname(&self) -> &str {
                 &self.hostname
             }
@@ -232,14 +263,9 @@ fn build_server_layers(args:&ServerArguments, att:&ServerAttributes) -> (TokenSt
             fn port(&self) -> &u16 {
                 &self.port
             }
-
-            async fn handle_request(&self, req:&mut http::RequestBuilder<std::net::TcpStream>) -> http::Response {
-                match self.handle(req).await {
-                    Ok(resp) => resp,
-                    Err(e) => self.error_handler(req.error(e)).await
-                }
-            }
         }
+
+        #async_sync_layer
     },
     struct_name.clone(),
     layers_name
@@ -255,9 +281,22 @@ pub fn build_server(args:ServerArguments, att:ServerAttributes) -> TokenStream {
         quote!{type}
     };
 
-    quote!{
-        #parts
+    let server = if args.is_async {
+        quote!{
+            #struct_start #name = http::AsyncServer<#parts_name>;
+        }
+    } else {
+        quote!{
+            #struct_start #name = http::SyncServer<#parts_name>;
+        }
+    };
 
-        #struct_start #name = http::Server<#parts_name>;
+    
+
+    quote!{
+        use http::Server;
+        #parts
+        #server 
     }
+    
 }
