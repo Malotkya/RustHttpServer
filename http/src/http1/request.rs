@@ -103,7 +103,7 @@ pub fn parse_request<S>(stream:S, hostname:&str, port:u16) -> Result<RequestBuil
         headers.set(
             line.next().unwrap().trim(),
             line.next().unwrap_or("").trim()
-        )
+        );
     }
 
     Ok(
