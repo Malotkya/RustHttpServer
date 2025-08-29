@@ -10,8 +10,9 @@ async fn Home(_: http::Request<HomePathParam>) -> http::Result {
     Ok(http::Response::from("Hello World!"))
 }
 
-async fn error_handler(_:http::ErrorRequest) -> http::Response {
-    http::Response::from("You done messed up!")
+async fn error_handler(mut req:http::ErrorRequest) -> http::Response {
+    req.param.message = "You done messed up!".to_string();
+    http::Response::from_error(req.param)
 }
 
 #[server(port=8080, is_async=true)]
