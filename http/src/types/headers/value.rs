@@ -1,6 +1,5 @@
 use httpdate::{HttpDate};
-use std::string::{ToString};
-
+use super::types::HeaderType;
 pub struct HeaderValue(Vec<u8>);
 
 #[derive(Debug)]
@@ -12,7 +11,7 @@ pub enum HeaderError {
 
 
 impl HeaderValue {
-    pub fn ref_str<'a>(&'a self) -> Result<&'a str, HeaderError>{
+    pub fn ref_str(&self) -> Result<&str, HeaderError> {
         match str::from_utf8(&self.0) {
             Ok(value) => Ok(value),
             Err(_) => Err(HeaderError::InvalidUtf8)
@@ -27,12 +26,32 @@ impl HeaderValue {
         }
     }
 
-    pub fn value(&self) -> Result<String, HeaderError> {
+    #[allow(dead_code)]
+    fn to_string(&self) -> Result<String, HeaderError> {
+        Ok(self.ref_str()?.to_string())
+    }
+
+    pub fn value<'a>(&'a self) -> Result<HeaderType<'a>, HeaderError> {
         match str::from_utf8(&self.0) {
-            Ok(value) => Ok(value.to_owned()),
+            Ok(value) => match value.trim() {
+                "*" => Ok(HeaderType::WildCard),
+                _ =>   Ok(HeaderType::Text(value))
+            },
             Err(_) => Err(HeaderError::InvalidUtf8)
         }
     }
+}
+
+macro_rules! to_value {
+    ( $($name:ident),+ ) => {
+        $(
+            impl<'a> From<&'a super::types::$name<'a>> for HeaderValue {
+                fn from(value:&'a super::types::$name<'a>) -> Self {
+                    Self(value.to_string().as_bytes().to_vec())
+                }
+            }
+        )+
+    };
 }
 
 impl<'a> Into<&'a str> for &'a HeaderValue {
@@ -63,81 +82,13 @@ impl From<&HttpDate> for HeaderValue {
     }
 }
 
-/*use crate::{Method, Url};
-use crate::request::uri::Uri;
-use super::types::*;
-
-
-
-trait FromHeaderValue<'a, T>{
-    fn to_str(&self) -> Result<&'a str, HeaderError>;
-    fn to_date(&self) -> Result<DateTime<FixedOffset>, HeaderError>;
-    fn to_vec(&self) -> Result<Vec<HeaderValue>, HeaderError>;
-    fn value(&'a self) -> Result<T, HeaderError>;
-}
-
-
-
-macro_rules! build_header {
-    ($name:ident) => {
-        build_header!(
-            $name,
-            String,
-            (this:&'a $name) -> Result<String, HeaderError> => {
-                Ok(String::from(this.to_str()?))
-            }
-        );
-    };
-    (
-        $name:ident,
-        $type:ty,
-        ($fun:ident) => {
-        #[derive(Copy, Clone, Eq, PartialEq)]
-        pub struct $name<'a>(&'a [u8]);
-
-        impl<'a> FromHeaderValue<'a, $type> for $name<'a> {
-            fn to_str(&self) -> Result<&'a str, HeaderError>{
-                match str::from_utf8(self.0) {
-                    Ok(value) => Ok(value),
-                    Err(_) => Err(HeaderError::InvalidUtf8)
-                }
-            }
-
-            
-
-            fn to_vec(&self) -> Result<Vec<HeaderValue<'a>>, HeaderError> {
-                let str = self.to_str()?;
-                Ok(str.split(",").map(|str|->HeaderValue<'a>{
-                    HeaderValue(str.as_bytes())
-                }).collect())
-            }
-
-            fn value(&'a self) -> Result<$type, HeaderError> {
-                $fun!(self)
-            }
-        }
-    }
-}
-
-build_header!(HeaderValue);
-
-#[inline]
-fn accept_value<'a>(this: &'a AcceptValue) -> Result<Vec<AcceptValueType<'a>>, HeaderError> {
-    Ok(AcceptValueType::parse(this.to_str()?))
-} build_header!(
-    AcceptValue,
-    Vec<AcceptValueType<'a>>,
-    accept_value
+to_value!(
+    MediaType,
+    AcceptValueType,
+    Charset
 );
 
-#[inline]
-fn charset_value<'a>(this: &'a AcceptCharsetValue ) -> Result<Vec<AcceptType<'a>>, HeaderError> {
-    Ok(AcceptType::parse(this.to_str()?))
-} build_header!(
-    AcceptCharsetValue,
-    Vec<AcceptType<'a>>,
-    charset_value
-);
+/*
 
 #[inline]
 fn encoding_value<'a>(this: &'a AcceptEncodingValue) -> Result<Vec<AcceptType<'a>>, HeaderError> {
