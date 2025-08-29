@@ -70,9 +70,18 @@ impl<P: ServerParts+AsyncParts> AsyncServer<P> {
                 println!("Listening at: http://{}", address.as_str());
 
                 loop {
-                    while listener.select
-                    for connection in listener.incoming() {
-
+                    match listener.accept() {
+                        Ok(connection) => {
+                            if conn.send(connection.0).is_err() {
+                                println!("Lost connection with main thread!");
+                                break;
+                            }
+                        },
+                        Err(e) => {
+                            if e.kind() != std::io::ErrorKind::WouldBlock {
+                                println!("{}", e)
+                            }
+                        }
                     }
 
                     if close.load(Ordering::Relaxed) {
