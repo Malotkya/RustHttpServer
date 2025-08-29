@@ -1,175 +1,61 @@
-use std::collections::{HashMap, VecDeque};
+macro_rules! header_type_imports {
+    (imports: $($name:path),+ ) => {
+        $(pub use $name::*;)+
+    };
+    (implement: $( ($name:ident, $type:ident),)+) => {
+        #[allow(dead_code)]
+        impl<'a> HeaderType<'a> {
+            $(
+                fn $name(&'a self) -> $type<'a> {
+                    self.into()
+                }
+            )+
+
+            fn parse<T: ParseType<'a>>(&'a self) -> Vec<T>{
+                T::parse(self)
+            }
+
+            fn as_str(&self) -> &str {
+                match self {
+                    Self::WildCard => "*",
+                    Self::Text(str) => str
+                }
+            }
+        }
+    };
+    ( $( ($mod:ident, $type:ident); )+ ) => {
+        header_type_imports!(imports: $($mod),+);
+        header_type_imports!(implement: $( ($mod, $type), )+);
+    }
+}
+
+mod media_type;
+mod accept_value;
+mod charset;
+pub use super::{HttpHeader, HeaderName};
 
 pub type QValue = f32;
 
-const EMPTY_STRING:&'static str = "";
+pub trait ParseType<'a>: Sized {
+    fn parse(value:&'a HeaderType<'a>) -> Vec<Self>;
+}
 
-pub enum Type<'a> {
+//const EMPTY_STRING:&'static str = "";
+
+pub enum HeaderType<'a> {
     WildCard,
     Text(&'a str),
 }
 
-impl<'a> Type<'a> {
-    pub fn value(&self) -> &'a str {
-        match self {
-            Self::Text(v) => *v,
-            Self::WildCard => "*" 
-        }
-    }
+header_type_imports!(
+    (media_type, MediaType);
+    (accept_value, AcceptValueType);
+    (charset, Charset);
+);
 
-    pub fn to_string(&self) -> String {
-        match self {
-            Self::Text(v) => String::from(*v),
-            Self::WildCard => String::from("*")
-        }
-    }
-}
 
-pub struct MediaType<'a>(Type<'a>, Type<'a>);
 
-impl<'a> MediaType<'a> {
-    pub fn new() -> Self {
-        Self(Type::WildCard, Type::WildCard)
-    }
-
-    pub fn from(str: &'a str) -> Self {
-        if str.is_empty() {
-            return Self::new();
-        }
-
-        match str.find("/") {
-            Some(index) => {
-                Self(
-                    Type::Text(&str[..index]),
-                    Type::Text(&str[index+1..])
-                )
-            },
-            None => {
-                Self(
-                    Type::Text(str),
-                    Type::WildCard
-                )
-            }
-        }
-    }
-}
-
-/// Http Headers: Accept
-/// 
-/// RFC-2616 14.1
-/// https://datatracker.ietf.org/doc/html/rfc2616#section-14.1
-/// 
-/// "Accept" ":" ( [media-range] [accept-params]? ),
-/// 
-/// media-range = "*/*" | [type]/"*" | [type]/[subtype]
-/// accept-params = ";" "q" "=" [qvalue] [accept-extension]?
-/// accept-extension = ";" [token] ["=" [token \ quoted-string]]?
-/// 
-pub struct AcceptValueType<'a> {
-    pub range: MediaType<'a>,
-    pub q: Option<QValue>,
-    pub extensions: HashMap<&'a str, &'a str>
-}
-
-impl<'a> AcceptValueType<'a> {
-    pub fn parse(value:&'a str) -> Vec<Self> {
-        value.split(",").map(|str | -> Self {
-            let mut lines:VecDeque<_> = str.split(";").collect();
-
-            let range:MediaType<'a> = match lines.pop_front() {
-                Some(str) => MediaType::from(str),
-                None => MediaType::new()
-            };
-
-            let mut q:Option<QValue> = None;
-            let mut extensions:HashMap<&'a str, &'a str> = HashMap::new();
-
-            while let Some(str) = lines.pop_front() {
-                match str.find("=") {
-                    Some(index) => {
-                        let key = str[..index].trim();
-                        let value = str[index+1..].trim();
-
-                        if key == "q" {
-                            q = match value.parse::<f32>() {
-                                Ok(value) => Some(value),
-                                Err(_) => None
-                            }
-                        } else {
-                            extensions.insert(key, value);
-                        }
-                    },
-                    None => {
-                        extensions.insert(str, "");
-                    }
-                }
-            }
-
-            Self {
-                range, q, extensions
-            }
-        }).collect()
-    }
-}
-
-/// Http Headers: Accept-Charset
-/// 
-/// RFC-2616 14.2
-/// https://datatracker.ietf.org/doc/html/rfc2616#section-14.1
-/// 
-/// "Accept-Charset" ":" ( [charset | *] [";" "q" "=" qvalue]? ),
-/// 
-pub struct AcceptType<'a>{
-    pub charset: Type<'a>,
-    pub q: Option<QValue>
-}
-
-impl<'a> AcceptType<'a> {
-    pub fn parse(value:&'a str) -> Vec<Self> {
-        value.split(",").map(|str|->AcceptType<'a> {
-            let lines: Vec<_> = str.split(";").collect();
-
-            let charset:Type<'a> = match lines.get(0) {
-                Some(str) => {
-                    if *str == "*"  {
-                        Type::WildCard
-                    } else {
-                        Type::Text(*str)
-                    }
-                },
-                None => Type::WildCard
-            };
-
-            let q:Option<QValue> = match lines.get(1) {
-                Some(str) => {
-                    match str.find("=") {
-                        Some(index) => {
-                            let key = str[..index].trim();
-                            let value = str[index+1..].trim();
-
-                            if key == "q" {
-                                match value.parse::<f32>() {
-                                    Ok(value) => Some(value),
-                                    Err(_) => None
-                                }
-                            } else {
-                                None
-                            }
-                        },
-                        None => None
-                    }
-                },
-                None => None
-            };
-
-            Self {
-                charset,
-                q
-            }
-        }).collect()
-    }
-}
-
+/*
 pub struct AuthorizationType<'a>(&'a str, &'a str);
 
 pub enum CacheControlType<'a> {
@@ -518,3 +404,5 @@ impl<'a> PrigmaDirective<'a> {
         }
     }
 }
+
+*/
