@@ -6,5 +6,6 @@ edition = "2024"
 [dependencies]
 http_macro = { path = "http_macro" }
 http = { path = "http" }
+async_lib = {path = "async_lib"}
 lazy_static = "1.4.0"
 regex = "1.10.5"
