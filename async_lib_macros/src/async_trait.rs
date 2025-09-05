@@ -84,7 +84,7 @@ fn build_async_function(func: &syn::TraitItemFn, index:usize) -> proc_macro2::To
 
     quote::quote!{
         fn #name (&mut self, #args_types) -> impl Future<Output = #output> {
-            std::future::poll_fn(|cx|{
+            std::future::poll_fn(move |cx|{
                 self.#func_ident(cx, #args_names)
             })
         }
@@ -130,14 +130,66 @@ fn build_trait_name(ident:&syn::Ident) -> syn::Ident {
     )
 }
 
+fn build_async_path(value: &syn::TraitBound) -> Result<syn::TraitBound, bool> {
+    let mut async_trait = value.clone();
+
+    if let Some(ident) = async_trait.path.segments.last_mut() {
+        let name = ident.ident.to_string();
+
+        if let Some(index) = name.find("Poll") {
+            ident.ident = syn::Ident::new(
+                &format!("{}Async{}", &name[..index], &name[index+4..]),
+                ident.ident.span()
+            );
+            
+            Ok(async_trait)
+        } else {
+            Err(name == "Sized")
+        }
+    } else {
+        Err(false)
+    }
+}
+
+fn build_async_supers(list: &syn::punctuated::Punctuated<syn::TypeParamBound, syn::token::Plus>, super_name:&syn::Ident) -> proc_macro2::TokenStream {
+    let mut is_sized = false;
+    let mut output = quote::quote!(#super_name);
+
+    for item in list.iter() {
+        if let syn::TypeParamBound::Trait(value) = item {
+            match build_async_path(value) {
+                Ok(path) => {
+                    output.extend(quote::quote!( + #path));
+                    continue;
+                },
+                Err(sized) => {
+                    if !is_sized && sized {
+                        is_sized = sized;
+                    }
+                    
+                }
+            }
+        } 
+        
+        output.extend(quote::quote!( + #item ));
+    }
+
+    if !is_sized {
+        output.extend(quote::quote!(+ Sized));
+    }
+
+    output
+}
+
 fn build_async_trait(poll_trait:&mut syn::ItemTrait) -> proc_macro2::TokenStream {
     let visibility = poll_trait.vis.clone();
     let super_name = &poll_trait.ident;
     let name = build_trait_name(super_name);
     let funcs = build_trait_functions(&mut poll_trait.items);
+    let supers = build_async_supers(&poll_trait.supertraits, super_name);
 
     quote::quote!{
-        #visibility trait #name: #super_name + Sized {
+        #visibility trait #name: #supers {
             #funcs
         }
     }
