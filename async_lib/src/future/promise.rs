@@ -1,13 +1,12 @@
 use std::{
     sync::{
-        Arc,
         mpsc::{Sender, Receiver, TryRecvError, channel}
     },
     task::{Context, Poll}
 };
-use crate::executor;
+use crate::spawn_task;
 
-async fn async_promise<'a, T, E>(future: impl Future<Output = Result<T, E>> + 'a, sender:Sender<Result<T, E>>) {
+async fn async_promise<T, E>(future: impl Future<Output = Result<T, E>> + 'static, sender:Sender<Result<T, E>>) {
    let result = future.await;
    sender.send(result).unwrap();
 }
@@ -16,12 +15,13 @@ async fn ready_promise<T, E>(ready: Result<T, E>, sender: Sender<Result<T, E>>) 
     sender.send(ready).unwrap();
 }
 
-pub struct Promise<T: Send + 'static, E:Send + 'static>(Receiver<Result<T, E>>);
+pub struct Promise<T, E>(Receiver<Result<T, E>>);
 
-impl<T: Send + 'static, E:Send + 'static> Promise<T, E> {
-    pub fn new(future: impl Future<Output = Result<T, E>> + Send + 'static) -> Self {
+impl<T:'static, E:'static> Promise<T, E> {
+    pub fn new(future: impl Future<Output = Result<T, E>> + 'static) -> Self {
         let (sender, receiver) = channel::<Result<T, E>>();
-        executor::spawn_task(async_promise(future, sender));
+        spawn_task(async_promise(future, sender));
+
         Self(
             receiver
         )
@@ -29,13 +29,13 @@ impl<T: Send + 'static, E:Send + 'static> Promise<T, E> {
 
     fn ready(result:Result<T, E>) -> Self {
         let (sender, receiver) = channel::<Result<T, E>>();
-        executor::spawn_task(ready_promise(result, sender));
+        spawn_task(ready_promise(result, sender));
         Self(
             receiver
         )
     }
 
-    pub fn then<F: Future<Output = Result<R, E>> + Send + 'static, R:Send + 'static>(self, callback: impl FnOnce(T) -> F)  -> Promise<R, E>{
+    pub fn then<F: Future<Output = Result<R, E>> + 'static, R:'static>(self, callback: impl FnOnce(T) -> F)  -> Promise<R, E>{
         match self.0.recv() {
             Ok(result) => match result {
                 Ok(t) => Promise::new(callback(t)),
@@ -57,13 +57,14 @@ impl<T: Send + 'static, E:Send + 'static> Promise<T, E> {
     }
 }
 
-impl<T: Send + 'static, E:Send + 'static> Future for Promise<T, E> {
-    type Output = Arc<Result<T, E>>;
+impl<T:'static, E:'static> Future for Promise<T, E> {
+    type Output = Result<T, E>;
 
-    fn poll(self: std::pin::Pin<&mut Self>, _: &mut Context<'_>) -> Poll<Self::Output> {
+    fn poll(self: std::pin::Pin<&mut Self>, ctx: &mut Context<'_>) -> Poll<Result<T, E>> {
         match self.0.try_recv() {
-            Ok(t) => Poll::Ready(Arc::new(t)),
+            Ok(t) => Poll::Ready(t),
             Err(e) => if e == TryRecvError::Empty {
+                ctx.waker().wake_by_ref();
                 Poll::Pending
             } else {
                 panic!("Promise was disconnected from Executor!")
@@ -75,16 +76,16 @@ impl<T: Send + 'static, E:Send + 'static> Future for Promise<T, E> {
 #[macro_export]
 macro_rules! promise {
     ($value:path) => {
-        async_http::Promise::new($value())
+        $crate::Promise::new($value())
     };
     ($value:path=>error=$type:ty) => {
-        async_http::Promise::new((async|| -> Result<(), $type>{
+        $crate::Promise::new((async|| -> Result<(), $type>{
             let e = $value().await;
             Err(e)
         })());
     };
     ($value:path=>result=$type:ty) => {
-        async_http::Promise::new((async|| -> Result<$type, ()>{
+        $crate::Promise::new((async|| -> Result<$type, ()>{
             let r = $value().await;
             Ok(r)
         })())
