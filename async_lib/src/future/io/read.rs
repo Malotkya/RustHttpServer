@@ -69,26 +69,28 @@ impl<T: AsRef<[u8]> + Unpin> PollRead for io::Cursor<T> {
 }
 
 pub trait PollBufRead: PollRead {
-    fn poll_fill_buf(&mut self, cx: &mut Context<'_>) -> Poll<io::Result<(usize, usize)>>;
+    fn poll_fill_buf(&mut self, cx: &mut Context<'_>) -> Poll<io::Result<&[u8]>>;
     //fn consume(&mut self, amt: usize);
 }
 
 pub trait AsyncBufRead : PollBufRead + Sized{
     fn fill_buf(&mut self) -> impl Future <Output = io::Result<&[u8]>> {
-        //let pin = 
+        let future = std::future::poll_fn(|cx|{
+            self.poll_fill_buf(cx).map(|result|result.map(|ptr|(ptr.as_ptr() as usize, ptr.len())))
+        });
 
-        crate::PollResultSlice{
-            func: Box::new(|cx|{
-                self.poll_fill_buf(cx)
-            })
-        }
+        let combine = async||{
+            future.await.map(|(ptr, len)| unsafe{ std::slice::from_raw_parts(ptr as *const u8, len)})
+        };
+
+        combine()
     }
 
     fn consume(& mut self, amt : usize);
 }
 
 impl<T: ?Sized + PollBufRead + Unpin> PollBufRead for Box<T> {
-    fn poll_fill_buf(&mut self, cx: &mut Context<'_>) -> Poll<io::Result<(usize, usize)>> {
+    fn poll_fill_buf(&mut self, cx: &mut Context<'_>) -> Poll<io::Result<&[u8]>> {
         self.as_mut().poll_fill_buf(cx)
     }
 }
@@ -100,8 +102,8 @@ impl<T: ?Sized + AsyncBufRead + Unpin> AsyncBufRead for Box<T> {
 }
 
 impl PollBufRead for &[u8] {
-    fn poll_fill_buf(&mut self, _cx: &mut Context<'_>) -> Poll<io::Result<(usize, usize)>> {
-        Poll::Ready(Ok((self.as_ptr() as usize, self.len())))
+    fn poll_fill_buf(&mut self, _cx: &mut Context<'_>) -> Poll<io::Result<&[u8]>> {
+        Poll::Ready(Ok(self))
     }
 }
 
