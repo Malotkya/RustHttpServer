@@ -14,17 +14,17 @@ impl TaskId {
     }
 }
 
-pub(crate) struct Task {
+pub(crate) struct Task<'a> {
     pub(crate) id: TaskId,
-    future: Pin<Box<dyn Future<Output = ()> + Send + 'static>>
+    future: Pin<Box<dyn Future<Output = ()> + 'a>>
 }
 
-impl Task where {
+impl<'a> Task<'a> where {
 
-    pub(crate) fn new(future: impl Future<Output = ()> + Send + 'static) -> Self {
+    pub(crate) fn new(future: Pin<Box<dyn Future<Output = ()> + 'a>>) -> Self {
         Self {
             id: TaskId::new(),
-            future: Box::pin(future)
+            future: future
         }
     }
 

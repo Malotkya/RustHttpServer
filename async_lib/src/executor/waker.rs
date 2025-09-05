@@ -1,40 +1,57 @@
 use std::{
     sync::{
         Arc, Mutex,
-        atomic::{AtomicUsize, Ordering}
     },
     task::{Waker, Wake},
     collections::VecDeque
 };
 use super::TaskId;
 
-static QUEUE_SIZE:AtomicUsize = AtomicUsize::new(0);
-pub(crate) static TASK_QUEUE:Mutex<VecDeque<TaskId>> = Mutex::new(VecDeque::new());
+#[derive(Clone)]
+pub(crate) struct Queue(Arc<Mutex<VecDeque<TaskId>>>);
 
-pub(crate) struct TaskWaker(TaskId);
+impl Queue {
+    pub fn new(capacity:usize) -> Self {
+        Self(Arc::new(
+            Mutex::new(
+                VecDeque::with_capacity(capacity)
+            )
+        ))
+    }
 
-pub(crate) fn get_queue_size() -> usize {
-    QUEUE_SIZE.load(Ordering::Acquire)
+    pub fn push(&self, item:TaskId) {
+        let mut queue = self.0.lock().unwrap();
+        if queue.len() >= queue.capacity() {
+            panic!("Task Queue is full!")
+        }
+        queue.push_back(item);
+    }
+
+    pub fn pop(&self) -> Option<TaskId> {
+        let mut queue = self.0.lock().unwrap();
+        queue.pop_front()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        let queue = self.0.lock().unwrap();
+        queue.is_empty()
+    }
 }
 
-pub(crate) fn set_queue_size(value:usize){
-    QUEUE_SIZE.store(value, Ordering::Relaxed);
+pub(crate) struct TaskWaker {
+    task:TaskId,
+    queue: Queue
 }
 
 impl TaskWaker {
-    pub fn new(task_id:TaskId) -> Waker {
-        Waker::from(Arc::new(TaskWaker(
-            task_id
-        )))
+    pub fn new(task:TaskId, queue:Queue) -> Waker {
+        Waker::from(Arc::new(TaskWaker{
+            task, queue
+        }))
     }
 
     fn wake_task(&self) {
-        let mut queue = TASK_QUEUE.lock().unwrap();
-        if queue.len() >= get_queue_size() {
-            panic!("Task Queue is full!");
-        }
-
-        queue.push_back(self.0);
+        self.queue.push(self.task);
     }
 }
 
