@@ -11,14 +11,38 @@ async fn async_promise<T, E>(future: impl Future<Output = Result<T, E>> + 'stati
    sender.send(result).unwrap();
 }
 
+async fn callback_promise<T, E>(res: impl FnOnce(T) + 'static, rej: impl FnOnce(E) + 'static, callback: impl FnOnce( Box<dyn FnOnce(T)> , Box<dyn FnOnce(E)> ) ) {
+    callback(
+        Box::new(res),
+        Box::new(rej)
+    );
+} 
+
 async fn ready_promise<T, E>(ready: Result<T, E>, sender: Sender<Result<T, E>>) {
     sender.send(ready).unwrap();
 }
 
+pub type ResultCallback<T> = Box<dyn Fn(T)>;
+
 pub struct Promise<T, E>(Receiver<Result<T, E>>);
 
 impl<T:'static, E:'static> Promise<T, E> {
-    pub fn new(future: impl Future<Output = Result<T, E>> + 'static) -> Self {
+
+    pub fn new(callback: impl FnOnce(Box<dyn FnOnce(T)> , Box<dyn FnOnce(E)>) + 'static) -> Self {
+        let (sender, receiver) = channel::<Result<T, E>>();
+        let sender_clone = sender.clone();
+
+        let res= move |value:T| sender.send(Ok(value)).unwrap();
+        let rej = move |value: E| sender_clone.send(Err(value)).unwrap();
+        spawn_task(callback_promise(res, rej, callback));
+        
+        
+        Self(
+            receiver
+        )
+    }
+
+    pub fn future(future: impl Future<Output = Result<T, E>> + 'static) -> Self {
         let (sender, receiver) = channel::<Result<T, E>>();
         spawn_task(async_promise(future, sender));
 
@@ -35,10 +59,14 @@ impl<T:'static, E:'static> Promise<T, E> {
         )
     }
 
-    pub fn then<F: Future<Output = Result<R, E>> + 'static, R:'static>(self, callback: impl FnOnce(T) -> F)  -> Promise<R, E>{
+    pub fn then<R:'static>(self, callback: impl FnOnce(Box<dyn FnOnce(R)> , Box<dyn FnOnce(E)>) + 'static) -> Promise<R, E> {
+        Promise::new(callback)
+    }
+
+    pub fn then_future<F: Future<Output = Result<R, E>> + 'static, R:'static>(self, callback: impl FnOnce(T) -> F)  -> Promise<R, E>{
         match self.0.recv() {
             Ok(result) => match result {
-                Ok(t) => Promise::new(callback(t)),
+                Ok(t) => Promise::future(callback(t)),
                 Err(e) => Promise::ready(Err(e))
             },
             Err(_) => panic!("Promise was disconnected from Executor!")
