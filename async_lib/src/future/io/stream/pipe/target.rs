@@ -4,12 +4,13 @@ use std::{
     ops::DerefMut,
     pin::Pin,
     io,
-    task::{Context, Poll}
+    task::{Context, Poll},
+    fmt
 };
 
 pub trait TargetPipe {
     type Chunk;
-    type Error;
+    type Error: fmt::Debug;
 
     fn poll_accept_next(&mut self, ctx: &mut Context<'_>, chunk:Self::Chunk) -> Poll<Result<(), Self::Error>>;
     fn poll_flush(&mut self, ctx: &mut Context<'_>) -> Poll<Result<(), Self::Error>>;
