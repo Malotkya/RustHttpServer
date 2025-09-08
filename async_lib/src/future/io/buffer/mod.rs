@@ -2,7 +2,7 @@ use std::{
     cmp,
     io,
     mem::MaybeUninit,
-    task::Poll
+    task::{Poll, Context}
 };
 use super::{AsyncRead, PollRead};
 
@@ -34,6 +34,10 @@ impl AsyncBuffer {
 
     pub fn buffer(&self) -> &[u8] {
         unsafe { self.buf.get_unchecked(self.pos..self.filled).assume_init_ref() }
+    }
+
+    pub unsafe fn mut_buffer(&mut self) -> &mut [u8] {
+        unsafe{ self.buf.get_unchecked_mut(self.pos..self.filled).assume_init_mut()}
     }
 
     pub fn size(&self) -> usize {
@@ -75,11 +79,17 @@ impl AsyncBuffer {
         self.pos = 0;
     }
 
-    pub async fn read_more(&mut self, reader: &mut impl AsyncRead) -> io::Result<usize> {
+    pub fn poll_read_more(&mut self, cx:&mut Context<'_>, reader: &mut impl PollRead) -> Poll<io::Result<usize>> {
         let buf = unsafe{ self.unfilled_mut() };
-        let amt = reader.read(buf).await?;
+        let amt = match reader.poll_read(cx, buf) {
+            Poll::Pending => return Poll::Pending,
+            Poll::Ready(r) => match r {
+                Ok(size) => size,
+                Err(e) => return Poll::Ready(Err(e))
+            }
+        };
         self.filled += amt;
-        Ok(amt)
+        Poll::Ready(Ok(amt))
     }
 }
 
