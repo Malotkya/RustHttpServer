@@ -1,12 +1,34 @@
 use std::{
     collections::BTreeMap,
-    task::{Context, Poll, Waker}
+    task::{Context, Poll, Waker},
+    cell::RefCell
 };
 use tasks::*;
 use waker::*; 
 
 mod tasks;
 mod waker;
+
+const EXECUTOR_QUEUE_SIZE: usize = 1000;
+
+thread_local! {
+    static EXECUTOR:RefCell<Executor<'static>> = RefCell::new(Executor::new(EXECUTOR_QUEUE_SIZE))
+}
+
+pub fn spawn_task(future: impl Future<Output = ()> + 'static) {
+    EXECUTOR.with(move |cell|{
+        let mut exe = cell.borrow_mut();
+        exe.spawn_task(future);
+    })
+}
+
+pub fn executor_loop() {
+    EXECUTOR.with(|cell|{
+        let mut exe = cell.borrow_mut();
+        //exe.sleep_if_idle();
+        exe.run_ready_tasks();
+    })
+}
 
 pub(crate) struct Executor<'a> {
     tasks: BTreeMap<TaskId, Task<'a>>,
@@ -49,6 +71,18 @@ impl<'a> Executor<'a> {
                 },
                 Poll::Pending => {}
             }
+        }
+    }
+
+    #[allow(dead_code)]
+    pub fn sleep_if_idle(&self) {
+        use x86_64::instructions::interrupts::{self, enable_and_hlt};
+        
+        interrupts::disable();
+        if self.task_queue.is_empty() {
+            enable_and_hlt();
+        } else {
+            interrupts::enable();
         }
     }
 }
