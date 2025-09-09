@@ -3,15 +3,15 @@ use std::{
     task::{Waker, Wake}
 };
 use super::TaskId;
-use super::atomic_coll::Queue;
+use super::atomic::AtomicQueue;
 
 pub(crate) struct TaskWaker {
     task:TaskId,
-    queue: Queue<TaskId>
+    queue: AtomicQueue<TaskId>
 }
 
 impl TaskWaker {
-    pub fn new(task:TaskId, queue:Queue<TaskId>) -> Waker {
+    pub fn new(task:TaskId, queue:AtomicQueue<TaskId>) -> Waker {
         Waker::from(Arc::new(TaskWaker{
             task, queue
         }))
