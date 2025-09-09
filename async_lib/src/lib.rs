@@ -11,3 +11,15 @@ mod future;
 pub use future::*;
 
 pub(crate) use executor::spawn_task;
+
+#[macro_export]
+macro_rules! async_fn {
+    ($($body:tt)*) => {
+        move || -> std::pin::Pin<Box<dyn Future<Output=()> + 'static>> {
+            Box::pin(
+                async move$($body)*
+            )
+        }
+    };
+}
+
