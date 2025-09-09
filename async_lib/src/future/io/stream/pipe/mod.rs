@@ -29,6 +29,16 @@ pub(crate) struct PipeTask<
     Source: SourcePipe<Chunk: Into<Target::Chunk>>
 >(*mut Pipe<Target, Source>);
 
+unsafe impl<
+    Target: TargetPipe,
+    Source: SourcePipe<Chunk: Into<Target::Chunk>>
+> Send for PipeTask<Target, Source> {}
+
+unsafe impl<
+    Target: TargetPipe,
+    Source: SourcePipe<Chunk: Into<Target::Chunk>>
+> Sync for PipeTask<Target, Source> {}
+
 impl<
     Target: TargetPipe<Chunk: From<<Source as Stream>::Item>> + SourcePipe + 'static,
     Source: SourcePipe<Chunk: Into<<Target as TargetPipe>::Chunk>> + 'static
