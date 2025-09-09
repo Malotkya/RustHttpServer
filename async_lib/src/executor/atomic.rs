@@ -1,12 +1,14 @@
 use std::{
     ops::Deref,
     sync::{Mutex, Arc},
-    collections::{VecDeque, BTreeMap}
+    collections::{VecDeque, BTreeMap},
+    task::{Context, Poll},
+    pin::Pin
 };
 
-pub(crate) struct Queue<T>(Arc<Mutex<VecDeque<T>>>, &'static str);
+pub(crate) struct AtomicQueue<T>(Arc<Mutex<VecDeque<T>>>, &'static str);
 
-impl<T> Clone for Queue<T> {
+impl<T> Clone for AtomicQueue<T> {
     fn clone(&self) -> Self {
         Self(
             self.0.clone(),
@@ -15,7 +17,7 @@ impl<T> Clone for Queue<T> {
     }
 }
 
-impl<T> Queue<T> {
+impl<T> AtomicQueue<T> {
     pub fn new(name:&'static str, capacity:usize) -> Self {
             Self(Arc::new(
                 Mutex::new(
@@ -45,9 +47,9 @@ impl<T> Queue<T> {
     }
 }
 
-pub(crate) struct Map<K: Ord, V:Send>(Arc<Mutex<BTreeMap<K, Arc<V>>>>);
+pub(crate) struct AtomicMap<K: Ord, V:Send>(Arc<Mutex<BTreeMap<K, Arc<V>>>>);
 
-impl<K: Ord, V: Send> Clone for Map<K, V> {
+impl<K: Ord, V: Send> Clone for AtomicMap<K, V> {
     fn clone(&self) -> Self {
         Self(
             self.0.clone()
@@ -55,7 +57,7 @@ impl<K: Ord, V: Send> Clone for Map<K, V> {
     }
 }
 
-impl<K: Ord, V:Send> Map<K, V> {
+impl<K: Ord, V:Send> AtomicMap<K, V> {
     pub fn new() -> Self {
         Self ( Arc::new(
             Mutex::new(
@@ -87,12 +89,74 @@ impl<K: Ord, V:Send> Map<K, V> {
     }
 }
 
-impl<K: Ord, V:Send + Clone> Map<K, V> {
+impl<K: Ord, V:Send + Clone> AtomicMap<K, V> {
     pub fn get_mut(&self, key:&K) -> Option<Arc<Mutex<V>>> {
         let map = self.0.lock().unwrap();
         map.get(key).map(|e|{
             let m = Mutex::new((*e.deref()).clone());
             Arc::new(m)
         })
+    }
+}
+
+#[derive(Clone)]
+pub(crate) struct AtomicFuture<'a>(Arc<Mutex<Pin<Box<dyn Future<Output = ()> + Send + 'a>>>>);
+
+impl<'a> AtomicFuture<'a> {
+    pub fn new(f: impl Future<Output = ()> + Send + 'a) -> Self {
+        Self(
+            Arc::new(
+                Mutex::new(
+                    Box::pin(f)
+                )
+            )
+        )
+    }
+
+    pub fn poll(&mut self, cx: &mut Context<'_>) -> Poll<()> {
+        let mut task = self.0.lock().unwrap();
+        task.as_mut().poll(cx)
+    }
+}
+
+#[derive(Clone)]
+pub(crate) struct AtomicOption<T:Send>(Arc<Mutex<Option<Arc<T>>>>);
+
+impl<T:Send> AtomicOption<T> {
+    pub fn new() -> Self {
+        Self::from(None)
+    }
+
+    pub fn from(value: Option<T>) -> Self {
+        Self(
+            Arc::new(Mutex::new(
+                value.map(|v|Arc::new(v))
+            ))
+        )
+    }
+
+    pub fn is_some(&self) -> bool {
+        let option = self.0.lock().unwrap();
+        option.is_some()
+    } 
+
+    pub fn is_none(&self) -> bool {
+        let option = self.0.lock().unwrap();
+        option.is_none()
+    } 
+
+    pub fn unwrap(&self) -> Arc<T> {
+        let option = self.0.lock().unwrap();
+        option.clone().unwrap()
+    }
+
+    pub fn try_unwrap(&self) -> Option<Arc<T>> {
+        let option = self.0.lock().unwrap();
+        option.clone()
+    }
+
+    pub fn set(&self, value:Option<T>) {
+        let mut option = self.0.lock().unwrap();
+        *option = value.map(|v|Arc::new(v));
     }
 }
