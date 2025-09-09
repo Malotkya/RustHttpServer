@@ -88,7 +88,7 @@ impl<'a> TaskHandler<'a> {
     }
 
     pub fn run_ready_tasks(&self) {
-        while let Some(task_id) = self.task_queue.pop() {
+        while super::RUNNING.load(Ordering::Acquire) && let Some(task_id) = self.task_queue.pop() {
             let task = match self.tasks.get_mut(&task_id) {
                 Some(task) => task,
                 None => continue
