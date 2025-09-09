@@ -19,14 +19,27 @@ impl JobHandler {
     }
 
     pub fn add(&self, job: impl FnOnce() + Send + 'static) {
+        if self.conn.is_none() {
+            panic!("Thread pool was never initalized!")
+        }
+
         self.queue.push(Box::new(job));
     }
 
-    pub fn single_thread(&'static self, listener: impl Fn() + Send + Sync + 'static) -> Arc<SingleThreadJob> {
+    pub fn single_thread(&'static self) -> Arc<SingleThreadJob> {
+        Arc::new(
+            SingleThreadJob {
+                handler:self,
+                listener: None
+            }
+        )
+    }
+
+    pub fn single_thread_listener(&'static self, listener: impl Fn() + Send + Sync + 'static) -> Arc<SingleThreadJob> {
         Arc::new(
             SingleThreadJob {
                 handler: self,
-                listener: Arc::new(Box::new(listener))
+                listener: Some(Arc::new(Box::new(listener)))
             }
         )
     }
@@ -48,7 +61,7 @@ impl ThreadJob for JobHandler {
 
 pub(crate) struct SingleThreadJob {
     handler: &'static JobHandler,
-    listener: Arc<Box<dyn Fn() + Send + Sync + 'static>>
+    listener: Option<Arc<Box<dyn Fn() + Send + Sync + 'static>>>
 }
 
 impl Clone for SingleThreadJob {
@@ -66,7 +79,9 @@ impl ThreadJob for SingleThreadJob {
     }
 
     fn next(&self) {
-        (self.listener)();
+        if self.listener.is_some() {
+            (self.listener.as_ref().unwrap())()
+        }
 
         if let Some(job) = self.handler.queue.pop() {
             job();
