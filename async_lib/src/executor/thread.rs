@@ -1,10 +1,10 @@
 use std::{
     sync::{
-        atomic::{AtomicBool, Ordering},
-        mpsc::{Sender, Receiver, channel}
+        atomic::Ordering,
+        mpsc::{Sender, Receiver, channel},
+        Arc
     },
     thread::{Builder, JoinHandle}
-    
 };
 
 pub(crate) struct ThreadPoolConnection {
@@ -34,6 +34,50 @@ pub trait ThreadJob: Send + Clone{
     fn next(&self);
 }
 
+impl<T: ThreadJob + Sync> ThreadJob for Arc<T> {
+    fn connect(&self, conn: ThreadPoolConnection) {
+        self.as_ref().connect(conn);
+    }
+
+    fn next(&self) {
+        self.as_ref().next();
+    }
+}
+
+impl<T: ThreadJob + Sync> ThreadJob for &'static T {
+    fn connect(&self, conn: ThreadPoolConnection) {
+        (*self).connect(conn);
+    }
+
+    fn next(&self) {
+        (*self).next();
+    }
+}
+
+#[derive(Clone)]
+pub(crate) struct ListenerThreadJob {
+    listener: Arc<Box<dyn Fn() + Send + Sync + 'static>>
+}
+
+impl ListenerThreadJob {
+    pub fn new(listener: impl Fn() + Send + Sync + 'static) -> Self {
+        Self {
+            listener: Arc::new(Box::new(listener))
+        }
+    }
+}
+
+impl ThreadJob for ListenerThreadJob {
+    fn connect(&self, _c: ThreadPoolConnection) {
+        
+    }
+
+    fn next(&self) {
+        (self.listener)();
+    }
+}
+
+#[derive(Default)]
 pub struct ThreadPool{
     threads: Vec<JoinHandle<()>>,
     sender: Option<Sender<usize>>,
@@ -67,7 +111,7 @@ impl ThreadPool {
         (&mut self.threads, s)
     }
 
-    pub fn init_thread<T: ThreadJob>(&mut self, name:&'static str, job:&'static mut T, running:AtomicBool) {
+    pub fn init_thread<T: ThreadJob + 'static>(&mut self, name:&str, job:T) {
         let (threads, sender) = self.assert_init();
         
         let index = threads.len();
@@ -83,7 +127,7 @@ impl ThreadPool {
         let clone = job.clone();
 
         threads.push(builder.spawn(move||{
-            while running.load(Ordering::Acquire) {
+            while super::RUNNING.load(Ordering::Acquire) {
                 clone.next();
             }
         }).unwrap());
