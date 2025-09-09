@@ -1,4 +1,6 @@
 pub use http_macro::{router, server};
+use async_lib::executor::{start_with_callback, shut_down};
+use async_lib::async_fn;
 
 #[router(path="/Hello/:Name")]
 async fn TestName(req: http::Request<TestNamePathParam>) -> http::Result {
@@ -23,7 +25,10 @@ struct ServerName (
 );
 
 fn main() {
-    ServerName::start()
-        .expect("There was a problem starting the server!");
+
+    start_with_callback(async_fn!({
+        println!("Hello World!");
+        //shut_down();
+    }));
 }
  
