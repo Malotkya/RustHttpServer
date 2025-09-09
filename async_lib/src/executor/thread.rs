@@ -1,53 +1,102 @@
 use std::{
-    thread::{spawn, JoinHandle, park},
     sync::{
-        atomic::Ordering
-    }
+        atomic::{AtomicBool, Ordering},
+        mpsc::{Sender, Receiver, channel}
+    },
+    thread::{Builder, JoinHandle}
+    
 };
-use super::atomic_coll::Queue;
 
-type Job = Box<dyn FnOnce() + Send + 'static>;
-
-fn spawn_job_thread(queue:Queue<Job>) -> JoinHandle<()> {
-    spawn(move||{
-        while super::RUNNING.load(Ordering::Acquire) {
-            if let Some(job) = queue.pop() {
-                job();
-            } else {
-                park()
-            }
-
-        }
-    })
+pub(crate) struct ThreadPoolConnection {
+    id: usize,
+    sender: Sender<usize>
 }
 
-pub struct ThreadPool {
-    jobs: Queue<Job>,
-    threads: Vec<JoinHandle<()>>
+unsafe impl Send for ThreadPoolConnection {}
+
+impl Clone for ThreadPoolConnection {
+    fn clone(&self) -> Self {
+        Self {
+            id: self.id,
+            sender: self.sender.clone()
+        }
+    }
+}
+
+impl ThreadPoolConnection {
+    pub fn unpark_self(&self) {
+        self.sender.send(self.id).unwrap();
+    }
+}
+
+pub trait ThreadJob: Send + Clone{
+    fn connect(&self, conn: ThreadPoolConnection);
+    fn next(&self);
+}
+
+pub struct ThreadPool{
+    threads: Vec<JoinHandle<()>>,
+    sender: Option<Sender<usize>>,
+    receiver: Option<Receiver<usize>>
 }
 
 impl ThreadPool {
-    pub fn new() -> Self {        
+    pub const fn new() -> Self {        
         Self {
-            jobs: Queue::new("Job", super::EXECUTOR_QUEUE_SIZE),
-            threads: Vec::new()
+            threads: Vec::new(),
+            sender: None,
+            receiver: None
         }
     }
 
     pub fn init(&mut self, thread_count:usize) {
-        assert_ne!(self.threads.capacity(), 0, "Thread pool already initalized!");
-        self.threads.reserve(thread_count);
+        assert_ne!(self.threads.capacity(), 0, "Thread Pool is Already Initalized!"); 
 
-        for _ in 0..thread_count {
-            self.threads.push(spawn_job_thread(self.jobs.clone()))
-        }
+        let (sender, receiver) = channel::<usize>();
+        self.sender = Some(sender);
+        self.receiver = Some(receiver);
+        self.threads = Vec::with_capacity(thread_count);
     }
 
-    pub fn add_job(&self, job: impl FnOnce() + Send + 'static) {
-        self.jobs.push(Box::new(job));
+    fn assert_init(&mut self) -> (&mut Vec<JoinHandle<()>>, &Sender<usize>) {
+        if self.sender.is_none() {
+            panic!("Thread pool is not intalized!");
+        }
 
-        for handle in &self.threads {
-            handle.thread().unpark()
+        let s = self.sender.as_ref().unwrap();
+        (&mut self.threads, s)
+    }
+
+    pub fn init_thread<T: ThreadJob>(&mut self, name:&'static str, job:&'static mut T, running:AtomicBool) {
+        let (threads, sender) = self.assert_init();
+        
+        let index = threads.len();
+        if index >= threads.capacity() {
+            panic!("Thread Pool Full!")
+        }
+
+        let builder = Builder::new().name(name.to_string());
+        job.connect(ThreadPoolConnection{
+            id: index,
+            sender: sender.clone()
+        });
+        let clone = job.clone();
+
+        threads.push(builder.spawn(move||{
+            while running.load(Ordering::Acquire) {
+                clone.next();
+            }
+        }).unwrap());
+    }
+
+    pub fn join(mut self) {
+        while let Some(handle) = self.threads.pop() {
+            handle.thread().unpark();
+
+            let name = (handle.thread().name().unwrap_or("Anonymous")).to_string();
+            if handle.join().is_err() {
+                println!("Unable to join with thread: \"{}\"!", name);
+            }
         }
     }
 }
