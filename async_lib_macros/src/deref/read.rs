@@ -26,10 +26,10 @@ pub fn implement_deref_read_buf(struct_name:&syn::Ident, trait_name: &syn::Ident
     quote::quote!{
         use crate::future::io::{PollBufRead, AsyncBufRead};
         impl PollBufRead for #struct_name {
-            fn poll_fill_buf(&mut self, cx: &mut std::task::Context<'_>, buf: &mut [u8]) -> std::task::Poll<std::io::Result<&[u8]>> {
+            fn poll_fill_buf(&mut self, cx: &mut std::task::Context<'_>) -> std::task::Poll<std::io::Result<&[u8]>> {
                 use std::io::BufRead;
 
-                match self.#trait_name.fill_buf(buf) {
+                match self.#trait_name.fill_buf() {
                     Ok(b) => std::task::Poll::Ready(Ok(b)),
                     Err(e) => if e.kind() == std::io::ErrorKind::WouldBlock {
                         cx.waker().wake_by_ref();
