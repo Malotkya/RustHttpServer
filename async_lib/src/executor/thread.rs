@@ -94,7 +94,7 @@ impl ThreadPool {
     }
 
     pub fn init(&mut self, thread_count:usize) {
-        assert_ne!(self.threads.capacity(), 0, "Thread Pool is Already Initalized!"); 
+        assert_eq!(self.threads.capacity(), 0, "Thread Pool is Already Initalized!"); 
 
         let (sender, receiver) = channel::<usize>();
         self.sender = Some(sender);
@@ -131,6 +131,12 @@ impl ThreadPool {
                 clone.next();
             }
         }).unwrap());
+    }
+
+    pub fn init_thread_group<T: ThreadJob + 'static>(&mut self, name:&str, job: T, count: usize) {
+        for index in 0..count {
+            self.init_thread(&format!("{}: {}", name, index+1), job.clone());
+        }
     }
 
     pub fn join(mut self) {
