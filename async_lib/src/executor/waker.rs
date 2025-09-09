@@ -18,7 +18,7 @@ impl TaskWaker {
     }
 
     fn wake_task(&self) {
-        self.queue.push(self.task);
+        self.queue.unique_push(self.task);
     }
 }
 

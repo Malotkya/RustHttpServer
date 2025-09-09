@@ -47,6 +47,20 @@ impl<T> AtomicQueue<T> {
     }
 }
 
+impl<T: PartialEq> AtomicQueue<T> {
+    pub fn unique_push(&self, value: T) {
+        let mut queue = self.0.lock().unwrap();
+
+        for item in queue.iter() {
+            if value == *item {
+                return;
+            }
+        }
+
+        queue.push_back(value);
+    }
+}
+
 pub(crate) struct AtomicMap<K: Ord, V:Send>(Arc<Mutex<BTreeMap<K, Arc<V>>>>);
 
 impl<K: Ord, V: Send> Clone for AtomicMap<K, V> {
