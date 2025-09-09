@@ -1,24 +1,53 @@
 use std::{
-    collections::BTreeMap,
-    task::{Context, Poll, Waker},
+    sync::{
+        atomic::AtomicBool,
+        mpsc::{Receiver, TryRecvError, channel}
+    },
     cell::RefCell
 };
 use tasks::*;
-use waker::*; 
+use thread::*;
 
 mod tasks;
 mod waker;
+mod thread;
+mod atomic_coll;
 
 const EXECUTOR_QUEUE_SIZE: usize = 1000;
+pub(crate) static RUNNING:AtomicBool = AtomicBool::new(false);
 
 thread_local! {
-    static EXECUTOR:RefCell<Executor<'static>> = RefCell::new(Executor::new(EXECUTOR_QUEUE_SIZE))
+    static EXECUTOR:RefCell<Executor<'static>> = RefCell::new(Executor::new(EXECUTOR_QUEUE_SIZE));
+    static THREAD_POOL:RefCell<ThreadPool> = RefCell::new(ThreadPool::new());
 }
 
 pub fn spawn_task(future: impl Future<Output = ()> + 'static) {
     EXECUTOR.with(move |cell|{
         let mut exe = cell.borrow_mut();
         exe.spawn_task(future);
+    })
+}
+
+pub fn thread_await<T: Send + 'static>(func: impl Fn() -> T + Send + 'static) -> impl Future<Output = T> {
+    let (sender, receiver) = channel::<T>();
+
+    THREAD_POOL.with(move|cell|{
+        let pool = cell.borrow_mut();
+
+        pool.add_job(move||{
+            let r = func();
+            sender.send(r).unwrap();
+        });
+    });
+
+    Actor(receiver)
+}
+
+pub fn thread_run(func: impl Fn() + Send + 'static) {
+    THREAD_POOL.with(move|cell|{
+        let pool = cell.borrow();
+
+        pool.add_job(func);
     })
 }
 
@@ -30,59 +59,20 @@ pub fn executor_loop() {
     })
 }
 
-pub(crate) struct Executor<'a> {
-    tasks: BTreeMap<TaskId, Task<'a>>,
-    waker_cache: BTreeMap<TaskId, Waker>,
-    task_queue: waker::Queue
-}
+pub struct Actor<T:Send>(pub(crate) Receiver<T>);
 
-impl<'a> Executor<'a> {
-    pub fn new(queue_size:usize) -> Self {
-        Self {
-            tasks: BTreeMap::new(),
-            waker_cache: BTreeMap::new(),
-            task_queue: waker::Queue::new(queue_size)
-        }
-    }
+impl<T:Send> Future for Actor<T> {
+    type Output = T;
 
-    pub fn spawn_task(&mut self, future: impl Future<Output = ()> + 'a) {
-        let task = Task::new(Box::pin(future));
-        let task_id = task.id;
-
-        self.tasks.insert(task_id, task);
-        self.task_queue.push(task_id);
-    }
-
-    pub fn run_ready_tasks(&mut self) {
-        while let Some(task_id) = self.task_queue.pop() {
-            let task = match self.tasks.get_mut(&task_id) {
-                Some(task) => task,
-                None => continue
-            };
-
-            let waker = self.waker_cache.entry(task_id)
-                .or_insert_with(|| TaskWaker::new(task_id, self.task_queue.clone()));
-            let mut context = Context::from_waker(waker);
-
-            match task.poll(&mut context) {
-                Poll::Ready(_) => {
-                    self.tasks.remove(&task_id);
-                    self.waker_cache.remove(&task_id);
-                },
-                Poll::Pending => {}
+    fn poll(self: std::pin::Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> std::task::Poll<Self::Output> {
+        match self.0.try_recv() {
+            Ok(value) => std::task::Poll::Ready(value),
+            Err(e) => if e == TryRecvError::Empty {
+                cx.waker().wake_by_ref();
+                std::task::Poll::Pending
+            } else {
+                panic!("Actor disconected!")
             }
-        }
-    }
-
-    #[allow(dead_code)]
-    pub fn sleep_if_idle(&self) {
-        use x86_64::instructions::interrupts::{self, enable_and_hlt};
-        
-        interrupts::disable();
-        if self.task_queue.is_empty() {
-            enable_and_hlt();
-        } else {
-            interrupts::enable();
         }
     }
 }
