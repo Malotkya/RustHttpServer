@@ -100,10 +100,10 @@ impl<K: Ord, V:Send + Clone> AtomicMap<K, V> {
 }
 
 #[derive(Clone)]
-pub(crate) struct AtomicFuture<'a>(Arc<Mutex<Pin<Box<dyn Future<Output = ()> + Send + 'a>>>>);
+pub(crate) struct AtomicFuture<'a>(Arc<Mutex<Pin<Box<dyn Future<Output = ()> + 'a>>>>);
 
 impl<'a> AtomicFuture<'a> {
-    pub fn new(f: impl Future<Output = ()> + Send + 'a) -> Self {
+    pub fn new(f: impl Future<Output = ()> + 'a) -> Self {
         Self(
             Arc::new(
                 Mutex::new(

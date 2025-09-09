@@ -1,39 +1,18 @@
 use std::{
-    pin::Pin, 
     sync::{
-        Arc,
-        Mutex,
         atomic::{
             AtomicU64, Ordering
         }
     },
     task::{Context, Poll, Waker},
-    thread::{park, JoinHandle, spawn},
+    thread
 };
 use super::{
     waker::TaskWaker,
-    atomic_coll::{Queue, Map}
+    AtomicQueue, AtomicMap, AtomicFuture, ThreadPoolConnection, AtomicOption, ThreadJob
 };
 
-#[derive(Clone)]
-pub(crate) struct AtomicFuture<'a>(Arc<Mutex<Pin<Box<dyn Future<Output = ()> + 'a>>>>);
 
-impl<'a> AtomicFuture<'a> {
-    fn new(f: impl Future<Output = ()> + 'a) -> Self {
-        Self(
-            Arc::new(
-                Mutex::new(
-                    Box::pin(f)
-                )
-            )
-        )
-    }
-
-    fn poll(&mut self, cx: &mut Context<'_>) -> Poll<()> {
-        let mut task = self.0.lock().unwrap();
-        task.as_mut().poll(cx)
-    }
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) struct TaskId(pub(crate) u64);
@@ -52,11 +31,9 @@ pub(crate) struct Task<'a> {
 }
 
 unsafe impl<'a> Send for Task<'a> {}
-//unsafe impl<'a> Sync for Task<'a> {}
 
 impl<'a> Task<'a> {
-
-    pub(crate) fn new(future: impl Future<Output = ()> + 'a) -> Self {
+    pub(crate) fn new(future: impl Future<Output = ()> +'a) -> Self {
         Self {
             id: TaskId::new(),
             future: AtomicFuture::new(future)
@@ -68,49 +45,49 @@ impl<'a> Task<'a> {
     }
 }
 
-pub(crate) struct Executor<'a> {
-    tasks: Map<TaskId, Task<'a>>,
-    waker_cache: Map<TaskId, Waker>,
-    task_queue: Queue<TaskId>,
-    handle: Option<JoinHandle<()>>
+pub(crate) struct TaskHandler<'a> {
+    tasks: AtomicMap<TaskId, Task<'a>>,
+    waker_cache: AtomicMap<TaskId, Waker>,
+    task_queue: AtomicQueue<TaskId>,
+    conn: AtomicOption<ThreadPoolConnection>
 }
 
-unsafe impl Send for Executor<'static> {}
+unsafe impl Send for TaskHandler<'static> {}
 
-impl<'a> Clone for Executor<'a> {
+impl<'a> Clone for TaskHandler<'a> {
     fn clone(&self) -> Self {
         Self {
             tasks: self.tasks.clone(),
             waker_cache: self.waker_cache.clone(),
             task_queue: self.task_queue.clone(),
-            handle: None
+            conn: self.conn.clone()
         }
     }
 }
 
-impl<'a> Executor<'a> {
+impl<'a> TaskHandler<'a> {
     pub fn new(queue_size:usize) -> Self {
         Self {
-            tasks: Map::new(),
-            waker_cache: Map::new(),
-            task_queue: Queue::new("Task", queue_size),
-            handle: None
+            tasks: AtomicMap::new(),
+            waker_cache: AtomicMap::new(),
+            task_queue: AtomicQueue::new("Task", queue_size),
+            conn: AtomicOption::new()
         }
     }
 
-    pub fn spawn_task(&mut self, future: impl Future<Output = ()> + 'a) {
+    pub fn spawn_task(&self, future: impl Future<Output = ()> + 'a) {
         let task = Task::new(Box::pin(future));
         let task_id = task.id;
 
         self.tasks.insert(task_id, task);
         self.task_queue.push(task_id);
 
-        if let Some(handle) = &self.handle {
-            handle.thread().unpark()
+        if let Some(conn) = self.conn.try_unwrap() {
+            conn.unpark_self();
         }
     }
 
-    pub fn run_ready_tasks(&mut self) {
+    pub fn run_ready_tasks(&self) {
         while let Some(task_id) = self.task_queue.pop() {
             let task = match self.tasks.get_mut(&task_id) {
                 Some(task) => task,
@@ -135,18 +112,22 @@ impl<'a> Executor<'a> {
 
     pub fn sleep_if_idle(&self) {
         if self.task_queue.is_empty() {
-            park();
+            thread::park();
         }
     }
+}
 
-    pub fn start_thread(&'static mut self) {
-        let mut clone = self.clone();
 
-        self.handle = Some(spawn(move ||{
-            while super::RUNNING.load(Ordering::Acquire) {
-                clone.run_ready_tasks();
-                clone.sleep_if_idle();
-            }
-        }));
+impl ThreadJob for TaskHandler<'static> {
+    fn connect(&self, conn:ThreadPoolConnection) {
+        self.conn.set(Some(conn));
+    }
+
+    fn next(&self) {
+        if self.task_queue.is_empty() {
+            self.sleep_if_idle()
+        }
+
+        self.run_ready_tasks();
     }
 }
