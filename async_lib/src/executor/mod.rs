@@ -98,13 +98,14 @@ impl Future for UserTask {
                 }
             }
         }
-        
+
         cx.waker().wake_by_ref();
         std::task::Poll::Pending
     }
 }
 
-pub fn init_thread_pool(thread_count:usize, listener: impl Fn() + Send + Sync + 'static) {
+
+pub fn init_thread_pool(thread_count:usize) {  
     if thread_count == 0 {
         panic!("Unable to initalize thread pool with zero threads!");
     }
@@ -118,21 +119,36 @@ pub fn init_thread_pool(thread_count:usize, listener: impl Fn() + Send + Sync + 
                 println!("Two threads is recomended");
                 pool.init_thread(
                     "Listener & IO", 
-                    JOBS.single_thread(listener), 
+                    JOBS.single_thread(), 
+                );
+            },
+            _ => {
+                pool.init_thread_group("IO", JOBS.deref(), thread_count);
+            }
+        }
+    });
+}
+
+pub fn init_thread_pool_with_listener(thread_count:usize, listener: impl Fn() + Send + Sync + 'static) {
+    if thread_count == 0 {
+        panic!("Unable to initalize thread pool with zero threads!");
+    }
+    
+    THREAD_POOL.with(|cell|{
+        let mut pool = cell.borrow_mut();
+        pool.init(thread_count);
+
+        match thread_count {
+            1 => {
+                println!("Two threads is recomended");
+                pool.init_thread(
+                    "Listener & IO", 
+                    JOBS.single_thread_listener(listener), 
                 );
             },
             _ => {
                 pool.init_thread("Listener", ListenerThreadJob::new(listener));
-
-                let mut index:usize = 1;
-                while index < thread_count {
-                    pool.init_thread(
-                        &format!("IO: {}", index),
-                        JOBS.deref()
-                    );
-
-                    index += 1;
-                }
+                pool.init_thread_group("IO", JOBS.deref(), thread_count-1);
             }
         }
     });
