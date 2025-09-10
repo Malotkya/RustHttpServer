@@ -1,7 +1,10 @@
 use std::{
     io,
     net,
-    time::Duration
+    time::Duration,
+    task::{Context, Poll},
+    async_iter::AsyncIterator,
+    pin::Pin
 };
 use async_lib_macros::deref_inner_async;
 
@@ -10,48 +13,97 @@ const READ_TIMEOUT:Duration = Duration::from_millis(500);
 const WRITE_TIMEOUT:Duration = Duration::from_secs(1);
 
 pub struct TcpListener {
-    io: net::TcpListener
+    io: net::TcpListener,
+    nonblocking: io::Result<bool>
 }
 
 impl TcpListener {
     pub fn bind<A: net::ToSocketAddrs>(addr: A) -> io::Result<Self> {
-        let io = net::TcpListener::bind(addr)?;
-        
+        Self::from(
+            net::TcpListener::bind(addr)?
+        )
+    }
+
+    fn from(io: net::TcpListener) -> io::Result<Self> {
+        let mut nonblocking = Ok(false);
+
         let mut attmpt:u8 = 0;
         while let Err(e) = io.set_nonblocking(true) {
             attmpt += 1;
             if attmpt > STOP_BLOCK_ATTEMPT {
-                return Err(e)
+                nonblocking = Err(e);
+                break;
             }
         }
-
         
-        Ok(Self{ io })
+        Ok(Self{
+            io,
+            nonblocking
+        })
     }
 
     pub fn local_addr(&self) -> io::Result<super::SocketAddr> {
         self.io.local_addr()
     }
 
-    pub fn accept(&self) -> io::Result<Option<(TcpStream, super::SocketAddr)>> {
-        match self.io.accept() {
-            Ok(s) => {
-                let (inner, addr) = s;
-                Ok(Some((
-                    TcpStream::from(inner)?,
-                    addr
-                )))
+    pub fn set_nonblocking(&mut self, nonblocking: bool) -> io::Result<()>{
+        match &self.nonblocking {
+            Ok(_) => {
+                self.nonblocking = Ok(nonblocking);
+                Ok(())
             },
-            Err(e) => if e.kind() == io::ErrorKind::WouldBlock {
-                Ok(None)
+            Err(e) => Err(
+                io::Error::new(
+                    e.kind(),
+                    e.to_string()
+                )
+            )
+        }
+    }
+
+    pub fn poll_accept(self: Pin<&Self>, cx:&Context<'_>) -> Poll<io::Result<(TcpStream, super::SocketAddr)>> {
+        match self.io.accept() {
+            Ok((inner, addr)) => Poll::Ready(
+                TcpStream::from(inner).map(|stream|{
+                    (stream, addr)
+                })
+            ),
+            Err(e) => if *(self.nonblocking.as_ref().unwrap_or(&false))
+                                && e.kind() == io::ErrorKind::WouldBlock {
+                cx.waker().wake_by_ref();
+                Poll::Pending
             } else {
-                Err(e)
+                Poll::Ready(Err(e))
             }
+        }
+    }
+
+    pub fn accept(&self) -> impl Future<Output = io::Result<(TcpStream, super::SocketAddr)>> {
+        let pin = Pin::new(self);
+        std::future::poll_fn(move |cx: &mut Context<'_>| {
+            pin.poll_accept(cx)
+        })  
+    }
+
+    pub fn sync_accept(&self) -> io::Result<(TcpStream, super::SocketAddr)> {
+        match self.io.accept() {
+            Ok((inner, addr)) => Ok((
+                TcpStream::from(inner)?,
+                addr
+            )),
+            Err(e) => Err(e)
         }
     }
 
     pub fn incoming(&self) -> Incoming<'_> {
         Incoming { listener: self }
+    }
+
+    pub fn try_clone(&self) -> io::Result<Self> {
+        Ok(Self{
+            io: self.io.try_clone()?,
+            nonblocking: super::clone_io_result(&self.nonblocking)
+        })
     }
 }
 
@@ -59,16 +111,17 @@ pub struct Incoming<'a> {
     listener: &'a TcpListener
 }
 
-impl<'a> Iterator for Incoming<'a> {
+impl<'a> AsyncIterator for Incoming<'a> {
     type Item = io::Result<TcpStream>;
 
-    fn next(&mut self) -> Option<io::Result<TcpStream>> {
-        match self.listener.accept() {
-            Ok(o) => match o {
-                Some(s) => Some(Ok(s.0)),
-                None => None
-            },
-            Err(e) => Some(Err(e))
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<io::Result<TcpStream>>> {
+        let pin = Pin::new(self.listener);
+        if let Poll::Ready(result) = pin.poll_accept(cx) {
+            Poll::Ready(Some(
+                result.map(|conn|conn.0)
+            ))
+        } else {
+            Poll::Pending
         }
     }
 }
@@ -113,5 +166,11 @@ impl TcpStream {
         }
 
         Ok(Self{io})
+    }
+
+    pub fn try_clone(&self) -> io::Result<Self> {
+        Ok(Self{
+            io: self.io.try_clone()?
+        })
     }
 }
