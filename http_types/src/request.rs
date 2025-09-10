@@ -60,9 +60,8 @@ pub struct RequestBuilder<STREAM: std::io::Read> {
     body_used:bool
 }
 
-#[allow(dead_code)]
 impl<S: std::io::Read> RequestBuilder<S> {
-    pub(crate) fn new(url:Url, method:Method, headers:Headers, version:Version, stream:Option<BufReader<S>>) -> Self{
+    pub fn new(url:Url, method:Method, headers:Headers, version:Version, stream:Option<BufReader<S>>) -> Self{
         Self {
             url, method, headers,
             version,
