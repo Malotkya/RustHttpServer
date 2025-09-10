@@ -1,7 +1,13 @@
 use proc_macro::TokenStream;
 
+mod async_func;
 mod async_trait;
 mod deref;
+
+#[proc_macro_attribute]
+pub fn async_fn(_:TokenStream, input:TokenStream) -> TokenStream {
+    async_func::async_function(input).into()
+}
 
 #[proc_macro_attribute]
 pub fn async_trait(_:TokenStream, input:TokenStream) -> TokenStream {
