@@ -82,9 +82,9 @@ struct UserTask{
 }
 
 impl UserTask {
-    pub fn new(func: impl Fn() -> Pin<Box<dyn Future<Output = ()>>>  + 'static) -> Self {
+    pub fn new(func: Box<dyn Fn() -> Pin<Box<dyn Future<Output = ()>>>  + 'static>) -> Self {
         Self {
-            function: Box::new(func),
+            function: func,
             future: None
         }
     }
@@ -165,7 +165,19 @@ pub fn start_with_callback(callback: impl Fn() -> Pin<Box<dyn Future<Output = ()
     TASKS.with(|cell|{
         let tasks = cell.borrow();
 
-        tasks.spawn_task(UserTask::new(callback));
+        tasks.spawn_task(UserTask::new(Box::new(callback)));
+        start();
+    });
+}
+
+pub fn start_with_callback_list(mut list: Vec<Box<dyn Fn() -> Pin<Box<dyn Future<Output = ()>>> + 'static>>) {
+    TASKS.with(|cell|{
+        let tasks = cell.borrow();
+
+        while let Some(callback) = list.pop() {
+            tasks.spawn_task(UserTask::new(callback));
+        }
+        
         start();
     });
 }
