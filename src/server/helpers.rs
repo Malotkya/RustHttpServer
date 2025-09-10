@@ -13,8 +13,8 @@ enum ConnectionError {
     IoError(std::io::Error)
 }
 
-fn http_build_request<S: AsyncRead>(stream:S, hostname:&str, port:u16) -> std::result::Result<RequestBuilder<S>, ConnectionError> {
-    match http1::parse_request(stream, hostname, port) {
+async fn http_build_request<S: AsyncRead>(stream:S, hostname:&str, port:u16) -> std::result::Result<RequestBuilder<S>, ConnectionError> {
+    match http1::parse_request(stream, hostname, port).await {
         Ok(builder) => Ok(builder),
         Err(e) => match e {
             http1::BuildError::MissingVersion(method, uri) => {
@@ -27,7 +27,7 @@ fn http_build_request<S: AsyncRead>(stream:S, hostname:&str, port:u16) -> std::r
 }
 
 pub(crate) async fn build_request(stream: TcpStream, resp: &mut TcpStream, hostname:&str, port:u16) -> Result<Option<RequestBuilder<TcpStream>>> {
-    match http_build_request(stream, hostname, port) {
+    match http_build_request(stream, hostname, port).await {
         Ok(req) => Ok(Some(req)),
         Err(ConnectionError::IoError(e)) => {
             write_connection_response(
