@@ -16,10 +16,18 @@ pub(crate) use executor::{spawn_task, await_thread, sapwn_thread};
 
 #[macro_export]
 macro_rules! async_fn {
-    ($($body:tt)*) => {
+    (  
+        $(clone=(
+            $($clone_name:ident),+
+        ),)?
+        {$($body:tt)*}
+    ) => {
         move || -> std::pin::Pin<Box<dyn Future<Output=()> + 'static>> {
+            $(
+                $( let $clone_name = $clone_name.clone();)+
+            )?
             Box::pin(
-                async move$($body)*
+                async move{$($body)*}
             )
         }
     };
