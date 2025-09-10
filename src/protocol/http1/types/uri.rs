@@ -50,7 +50,7 @@
 /// uric          = reserved | unreserved | escaped
 use super::{Text, Tokens, Seperator, Tokenizer, TokenError, TokenIterator};
 use std::fmt;
-use crate::types::{Hostname, Url, ToUrl};
+use http_types::{Hostname, Url, ToUrl};
 
 /*lazy_static::lazy_static!{
     static ref ABS_URI_REF:Text = Text::from_str();

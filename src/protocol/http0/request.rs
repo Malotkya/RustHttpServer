@@ -3,7 +3,7 @@
 /// GET [PATH]
 /// 
 use std::{fmt, io::Read};
-use crate::{Headers, Method, Url, types::Version, RequestBuilder};
+use http_types::{Headers, Method, Url, Version, RequestBuilder};
 use crate::http1::{types::Uri};
 
 pub enum BuildError {

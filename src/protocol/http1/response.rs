@@ -1,4 +1,4 @@
-use crate::{Version, Response};
+use http_types::{Version, Response};
 use std::io::{Write, Result};
 
 pub fn write_response<S>(resp:Response, ver:Version, stream:&mut S) -> Result<()> where S: Write {
