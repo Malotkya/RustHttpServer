@@ -21,10 +21,6 @@ pub use url::*;
 
 pub type Result = std::result::Result<Response, HttpError>;
 
-pub trait Router {
-    fn handle(&self, req:&mut RequestBuilder<std::net::TcpStream>) -> impl Future<Output = std::result::Result<Option<Response>, HttpError>>;
-}
-
 pub struct Version {
     pub major: u8,
     pub minor: u8
