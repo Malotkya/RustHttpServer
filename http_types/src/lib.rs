@@ -1,3 +1,5 @@
+#![feature(str_from_raw_parts)]
+
 mod error;
 pub use error::{HttpError, HttpErrorKind};
 mod headers;

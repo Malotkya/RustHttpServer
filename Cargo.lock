@@ -58,12 +58,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c08606f8c3cbf4ce6ec8e28fb0014a2c086708fe954eaa885384a6165172e7e8"
 
 [[package]]
-name = "bit_field"
-version = "0.10.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1e4b40c7323adcfc0a41c4b88143ed58346ff65a288fc144329c5c45e05d70c6"
-
-[[package]]
 name = "bitflags"
 version = "2.9.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -182,19 +176,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "95505c38b4572b2d910cecb0281560f54b440a19336cbbcb27bf6ce6adc6f5a8"
 
 [[package]]
-name = "http"
-version = "0.1.0"
-dependencies = [
- "chrono",
- "http_macro",
- "httpdate",
- "lazy_static",
- "regex",
- "urlencoding",
- "x86_64",
-]
-
-[[package]]
 name = "http_macro"
 version = "0.1.0"
 dependencies = [
@@ -205,6 +186,18 @@ dependencies = [
  "quote",
  "regex",
  "syn",
+]
+
+[[package]]
+name = "http_types"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "http_macro",
+ "httpdate",
+ "lazy_static",
+ "regex",
+ "urlencoding",
 ]
 
 [[package]]
@@ -376,8 +369,8 @@ name = "rust_http_server"
 version = "0.1.0"
 dependencies = [
  "async_lib",
- "http",
  "http_macro",
+ "http_types",
  "lazy_static",
  "regex",
 ]
@@ -450,12 +443,6 @@ dependencies = [
  "js-sys",
  "wasm-bindgen",
 ]
-
-[[package]]
-name = "volatile"
-version = "0.4.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "442887c63f2c839b346c192d047a7c87e73d0689c9157b00b53dcc27dd5ea793"
 
 [[package]]
 name = "wasi"
@@ -599,16 +586,4 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6f42320e61fe2cfd34354ecb597f86f413484a798ba44a8ca1165c58d42da6c1"
 dependencies = [
  "bitflags",
-]
-
-[[package]]
-name = "x86_64"
-version = "0.14.13"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c101112411baafbb4bf8d33e4c4a80ab5b02d74d2612331c61e8192fc9710491"
-dependencies = [
- "bit_field",
- "bitflags",
- "rustversion",
- "volatile",
 ]
