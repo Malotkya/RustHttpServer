@@ -2,7 +2,8 @@
 /// 
 /// GET [PATH]
 /// 
-use std::{fmt, io::Read};
+use std::fmt;
+use async_lib::io::AsyncRead;
 use http_types::{Headers, Method, Url, Version, RequestBuilder};
 use crate::http1::{types::Uri};
 
@@ -21,7 +22,7 @@ impl fmt::Display for BuildError {
 }
 
 pub fn build<S>(port:u16, method: Method, path:Uri) -> Result<RequestBuilder<S>, BuildError> 
-    where S: Read {
+    where S: AsyncRead {
     if method != Method::GET {
         return Err(BuildError::OnlyGetMethod)
     }

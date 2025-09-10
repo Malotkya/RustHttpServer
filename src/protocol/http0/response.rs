@@ -1,9 +1,10 @@
 use http_types::Response;
-use std::io::{Write, Result};
+use async_lib::io::{AsyncWrite, Result};
 
-pub fn write<S>(resp: Response, stream:&mut S) -> Result<()> where S: Write{
+pub async fn write<S>(resp: Response, stream:&mut S) -> Result<()> where S: AsyncWrite {
     for chunk in resp.body {
-        stream.write(chunk.value())?;
+        stream.write(chunk.value()).await?;
     }
+    
     Ok(())
 }

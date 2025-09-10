@@ -7,7 +7,7 @@
 /// 
 use std::fmt;
 use http_types::{RequestBuilder, Method, Headers, ToUrl};
-use std::io::Read;
+use async_lib::io::AsyncRead;
 use super::types::*;
 
 pub enum BuildError {
@@ -40,12 +40,12 @@ impl fmt::Display for BuildError {
     }
 }
 
-pub fn parse_request<S>(stream:S, hostname:&str, port:u16) -> Result<RequestBuilder<S>, BuildError>
-    where S: Read{
+pub async fn parse_request<S>(stream:S, hostname:&str, port:u16) -> Result<RequestBuilder<S>, BuildError>
+    where S: AsyncRead {
 
     let mut parser = StreamParser::new(stream);
 
-    let start_line = match parser.parse(){
+    let start_line = match parser.parse().await {
         Ok(Some(line)) => line,
         Ok(None) => return Err(BuildError::EmptyRequest),
         Err(e) => match e {
@@ -93,7 +93,7 @@ pub fn parse_request<S>(stream:S, hostname:&str, port:u16) -> Result<RequestBuil
     };
 
     let mut headers = Headers::new();
-    while let Some(chunk) = parser.parse().map_err(|e|match e{
+    while let Some(chunk) = parser.parse().await.map_err(|e|match e{
         ParseStreamError::ReadError(e) => BuildError::IoError(e),
         parse_err => BuildError::ParseError(parse_err)
     })? && chunk.has_some() {
