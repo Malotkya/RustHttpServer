@@ -18,7 +18,7 @@ impl<R: PollRead> AsyncBufReader<R> {
         }
     }
 
-    fn poll_read(&mut self, cx: &mut Context<'_>, buf:&mut [u8]) -> Poll<io::Result<usize>> {
+    pub fn poll_read(&mut self, cx: &mut Context<'_>, buf:&mut [u8]) -> Poll<io::Result<usize>> {
         if self.buf.poll_read_more(cx, &mut self.inner).is_ready() {
             self.buf.poll_read(cx, buf)
         } else {
@@ -26,13 +26,13 @@ impl<R: PollRead> AsyncBufReader<R> {
         }
     }
 
-    fn read(&mut self, buf:&mut [u8]) -> impl Future<Output = io::Result<usize>> {
+    pub fn read(&mut self, buf:&mut [u8]) -> impl Future<Output = io::Result<usize>> {
         std::future::poll_fn(move |cx|{
             self.poll_read(cx, buf)
         })
     }
 
-    fn poll_read_vectored(&mut self, cx: &mut Context<'_>, bufs: &mut [io::IoSliceMut<'_>]) -> Poll<io::Result<usize>> {
+    pub fn poll_read_vectored(&mut self, cx: &mut Context<'_>, bufs: &mut [io::IoSliceMut<'_>]) -> Poll<io::Result<usize>> {
         if self.buf.poll_read_more(cx, &mut self.inner).is_ready() {
             self.buf.poll_read_vectored(cx, bufs)
         } else {
@@ -40,13 +40,13 @@ impl<R: PollRead> AsyncBufReader<R> {
         }
     }
 
-    fn read_vectored(&mut self, bufs: &mut [io::IoSliceMut<'_>]) -> impl Future<Output = io::Result<usize>> {
+    pub fn read_vectored(&mut self, bufs: &mut [io::IoSliceMut<'_>]) -> impl Future<Output = io::Result<usize>> {
         std::future::poll_fn(move |cx|{
             self.poll_read_vectored(cx, bufs)
         })
     }
 
-    fn poll_fill_buf(&mut self, cx:&mut Context<'_>) -> Poll<io::Result<&[u8]>> {
+    pub fn poll_fill_buf(&mut self, cx:&mut Context<'_>) -> Poll<io::Result<&[u8]>> {
         if self.buf.poll_read_more(cx, &mut self.inner).is_ready() {
             Poll::Ready(Ok(self.buf.buffer()))
         } else {
@@ -54,7 +54,7 @@ impl<R: PollRead> AsyncBufReader<R> {
         }
     }
 
-    fn fill_buf(&mut self) -> impl Future<Output = io::Result<&[u8]>> {
+    pub fn fill_buf(&mut self) -> impl Future<Output = io::Result<&[u8]>> {
         let future = std::future::poll_fn(|cx|{
             self.poll_fill_buf(cx).map(|result|result.map(|ptr|(ptr.as_ptr() as usize, ptr.len())))
         });
@@ -66,8 +66,12 @@ impl<R: PollRead> AsyncBufReader<R> {
         combine()
     }
 
-    fn consume(&mut self, amt: usize) {
+    pub fn consume(&mut self, amt: usize) {
         self.buf.consume(amt)
+    }
+
+    pub fn buffer(&self) -> &[u8] {
+        self.buf.buffer()
     }
 }
 
