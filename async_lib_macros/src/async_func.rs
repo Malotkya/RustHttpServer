@@ -113,18 +113,18 @@ fn build_function_name(ident:&syn::Ident, index:usize) -> syn::Ident {
     )
 }
 
-pub fn build_async_function(
-    ident:&syn::Ident, index: usize,
-    inputs: &syn::punctuated::Punctuated<syn::FnArg, syn::token::Comma>,
-    output: &syn::ReturnType
-) -> proc_macro2::TokenStream {
+pub fn build_async_function(sig:&syn::Signature, index: usize) -> proc_macro2::TokenStream {
+
+    let ident = &sig.ident;
+    let generics = &sig.generics;
 
     let name = build_function_name(ident, index);
-    let (args_types, args_names) = build_function_arguments(inputs);
-    let output = unwrap_return(output);
+    let (args_types, args_names) = build_function_arguments(&sig.inputs);
+    let output = unwrap_return(&sig.output);
+    
 
     quote::quote!{
-        fn #name (#args_types) -> impl Future<Output = #output> {
+        fn #name #generics (#args_types) -> impl Future<Output = #output> {
             let mut pin = std::pin::Pin::new(self);
             std::future::poll_fn(move |cx|{
                 pin.as_mut().#ident(cx, #args_names)
@@ -139,11 +139,7 @@ pub fn async_function(input:proc_macro::TokenStream) -> proc_macro2::TokenStream
     let index = item.sig.ident.to_string().find("poll")
         .expect("Cannot turn non-poll function into an async function!");
 
-    let async_func = build_async_function(
-        &item.sig.ident, index,
-        &item.sig.inputs,
-        &item.sig.output
-    );
+    let async_func = build_async_function(&item.sig, index);
 
     let public = &item.vis;
     
