@@ -1,20 +1,25 @@
 pub fn unwrap_return(value: &syn::ReturnType) -> proc_macro2::TokenStream {
     match value{
         syn::ReturnType::Default => quote::quote!(),
-        syn::ReturnType::Type(_, t) => match (*t).as_ref() {
-            syn::Type::Path(path) => if path.qself.is_none() {
-                let t = unwrap_return_segments(&path.path.segments);
-                quote::quote!(#t)
-            } else {
-                let t = path.qself.clone().unwrap().ty;
-                quote::quote!(#t)
-            },
-            bad => panic!("Unable to unwrap type {:?}", bad)
-        }
+        syn::ReturnType::Type(_, t) => unwrap_type(t)
+            .expect(&format!("Unable to unwrap type {:?}", t))
     }
 }
 
-fn unwrap_return_segments(segs: &syn::punctuated::Punctuated<syn::PathSegment, syn::token::PathSep>) -> syn::Type {
+pub fn unwrap_type(value: &syn::Type) -> Option<proc_macro2::TokenStream> {
+    match value{
+        syn::Type::Path(path) => if path.qself.is_none() {
+            let t = unwrap_segments(&path.path.segments);
+            Some(quote::quote!(#t))
+        } else {
+            let t = path.qself.clone().unwrap().ty;
+            Some(quote::quote!(#t))
+        },
+        _ => None
+    }
+}
+
+fn unwrap_segments(segs: &syn::punctuated::Punctuated<syn::PathSegment, syn::token::PathSep>) -> syn::Type {
     let mut it = segs.iter();
 
     while let Some(seg) = it.next() {
@@ -30,14 +35,16 @@ fn unwrap_return_segments(segs: &syn::punctuated::Punctuated<syn::PathSegment, s
 
 fn get_argument_ident(arg:&syn::FnArg) -> (syn::Ident, proc_macro2::TokenStream, bool) {
     match arg {
-        syn::FnArg::Receiver(r) => (
+        syn::FnArg::Receiver(r) => {
+            (
             syn::Ident::new(
                 "self",
                 proc_macro2::Span::call_site()
             ),
-            quote::quote!(#r),
+            unwrap_type(&r.ty).map(|t|quote::quote!(self: #t)).unwrap_or(quote::quote!(#r)),
             true
-        ),
+        )
+        },
         syn::FnArg::Typed(t) => match t.pat.as_ref() {
             syn::Pat::Ident(i) => {
                 let ident = i.ident.clone();
@@ -80,23 +87,18 @@ pub fn build_function_arguments(args: &syn::punctuated::Punctuated<syn::FnArg, s
     let mut args_name = quote::quote!();
 
     if let Some(first) = it.next() {
-        let (name, pattern, is_self)= get_argument_ident(first);
+        let (_, pattern, is_self)= get_argument_ident(first);
         if is_self {
-            args_list.extend(quote::quote!( #pattern ));
-            args_name.extend(quote::quote!( #name ));
+            args_list.extend(quote::quote!( #pattern, ));
+            //args_name.extend(quote::quote!( #name ));
             it.next(); //Context
-
-        } else if let Some(new_first) = it.next(){
-            let (name, pattern, _) = get_argument_ident(new_first);
-            args_list.extend(quote::quote!( #pattern ));
-            args_name.extend(quote::quote!( #name ));
-        }
+        } //Else assume Context
     }
 
     while let Some(next) = it.next() {
         let (name, pattern, _) = get_argument_ident(next);
-        args_list.extend(quote::quote!( ,#pattern ));
-        args_name.extend(quote::quote!( ,#name ));
+        args_list.extend(quote::quote!( #pattern, ));
+        args_name.extend(quote::quote!( #name, ));
     }
 
     (args_list, args_name)
@@ -123,9 +125,9 @@ pub fn build_async_function(
 
     quote::quote!{
         fn #name (#args_types) -> impl Future<Output = #output> {
-            let pin = std::pin::Pin::new(self);
+            let mut pin = std::pin::Pin::new(self);
             std::future::poll_fn(move |cx|{
-                pin.#ident(cx, #args_names)
+                pin.as_mut().#ident(cx, #args_names)
             })
         }
     }
@@ -142,9 +144,11 @@ pub fn async_function(input:proc_macro::TokenStream) -> proc_macro2::TokenStream
         &item.sig.inputs,
         &item.sig.output
     );
+
+    let public = &item.vis;
     
     quote::quote! {
         #item
-        #async_func
+        #public #async_func
     }
 }
