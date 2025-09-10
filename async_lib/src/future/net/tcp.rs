@@ -6,7 +6,7 @@ use std::{
     async_iter::AsyncIterator,
     pin::Pin
 };
-use async_lib_macros::deref_inner_async;
+use async_lib_macros::{deref_inner_async, async_fn};
 
 const STOP_BLOCK_ATTEMPT:u8 = 10;
 const READ_TIMEOUT:Duration = Duration::from_millis(500);
@@ -61,7 +61,8 @@ impl TcpListener {
         }
     }
 
-    pub fn poll_accept(self: Pin<&Self>, cx:&Context<'_>) -> Poll<io::Result<(TcpStream, super::SocketAddr)>> {
+    #[async_fn]
+    pub fn poll_accept(self: Pin<&mut Self>, cx:&Context<'_>) -> Poll<io::Result<(TcpStream, super::SocketAddr)>> {
         match self.io.accept() {
             Ok((inner, addr)) => Poll::Ready(
                 TcpStream::from(inner).map(|stream|{
@@ -78,13 +79,6 @@ impl TcpListener {
         }
     }
 
-    pub fn accept(&self) -> impl Future<Output = io::Result<(TcpStream, super::SocketAddr)>> {
-        let pin = Pin::new(self);
-        std::future::poll_fn(move |cx: &mut Context<'_>| {
-            pin.poll_accept(cx)
-        })  
-    }
-
     pub fn sync_accept(&self) -> io::Result<(TcpStream, super::SocketAddr)> {
         match self.io.accept() {
             Ok((inner, addr)) => Ok((
@@ -95,7 +89,7 @@ impl TcpListener {
         }
     }
 
-    pub fn incoming(&self) -> Incoming<'_> {
+    pub fn incoming(&mut self) -> Incoming<'_> {
         Incoming { listener: self }
     }
 
@@ -108,14 +102,14 @@ impl TcpListener {
 }
 
 pub struct Incoming<'a> {
-    listener: &'a TcpListener
+    listener: &'a mut TcpListener
 }
 
 impl<'a> AsyncIterator for Incoming<'a> {
     type Item = io::Result<TcpStream>;
 
-    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<io::Result<TcpStream>>> {
-        let pin = Pin::new(self.listener);
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<io::Result<TcpStream>>> {
+        let pin = Pin::new(&mut *self.listener);
         if let Poll::Ready(result) = pin.poll_accept(cx) {
             Poll::Ready(Some(
                 result.map(|conn|conn.0)
