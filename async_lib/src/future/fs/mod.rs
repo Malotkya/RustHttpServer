@@ -7,7 +7,7 @@ use std::{
     path::Path,
     io
 };
-use crate::thread_await;
+use crate::await_thread;
 
 macro_rules! asyncify {
     ($name:ident($( $( $arg_name:ident: $arg_type:ident ),+ )? ) -> $output:ty) => {
@@ -19,7 +19,7 @@ macro_rules! asyncify {
                 $(let $arg_name = canonicalize($arg_name)?; )+
             )?
 
-            thread_await(move ||{
+            await_thread(move ||{
                 std::fs::$name(
                     $( $( $arg_name.clone() ),+ )?
                 )
@@ -56,7 +56,7 @@ asyncify!(symlink_metadata(path: P) -> io::Result<Metadata>);
 pub async fn set_permissions<P: AsRef<Path>>(path: P, perm: Permissions) -> io::Result<()> {
     let path = canonicalize(path)?;
 
-    thread_await(move||{
+    await_thread(move||{
         std::fs::set_permissions(path.clone(), perm.clone())
     }).await
 }
@@ -66,7 +66,7 @@ pub async fn write<P: AsRef<Path>, C: AsRef<[u8]>>(path: P, contents: C) -> io::
     let ptr = contents.as_ref().as_ptr() as usize;
     let len = contents.as_ref().len();
 
-    thread_await(move ||{
+    await_thread(move ||{
         let contents = unsafe {
             std::slice::from_raw_parts(ptr as *const u8, len)
         };
