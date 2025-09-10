@@ -36,7 +36,7 @@ pub fn spawn_task(future: impl Future<Output = ()> + 'static) {
     })
 }
 
-pub fn thread_await<T: Send + 'static>(func: impl Fn() -> T + Send + Sync + 'static) -> impl Future<Output = T> {
+pub fn await_thread<T: Send + 'static>(func: impl Fn() -> T + Send + Sync + 'static) -> impl Future<Output = T> {
     let (sender, receiver) = channel::<T>();
 
     JOBS.add(move||{
@@ -47,8 +47,15 @@ pub fn thread_await<T: Send + 'static>(func: impl Fn() -> T + Send + Sync + 'sta
     Actor(receiver)
 }
 
-pub fn thread_run(func: impl Fn() + Send + Sync + 'static) {
-    JOBS.add(func);
+pub fn sapwn_thread<T: Send + 'static>(func: impl Fn() -> T + Send + Sync + 'static) -> T {
+    let (sender, receiver) = channel::<T>();
+
+    JOBS.add(move||{
+        let r = func();
+        sender.send(r).unwrap();
+    });
+    
+    receiver.recv().unwrap()
 }
 
 struct Actor<T:Send>(pub(crate) Receiver<T>);

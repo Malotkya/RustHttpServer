@@ -12,7 +12,7 @@ mod future;
 pub use future::*;
 
 #[allow(unused_imports)]
-pub(crate) use executor::{spawn_task, thread_await, thread_run};
+pub(crate) use executor::{spawn_task, await_thread, sapwn_thread};
 
 #[macro_export]
 macro_rules! async_fn {
