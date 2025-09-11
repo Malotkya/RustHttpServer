@@ -27,13 +27,15 @@ impl fmt::Display for ParseStreamError {
 }
 
 fn next_chunk<'a>(buffer:&'a [u8], mut index:usize) -> Result<Option<usize>, ParseStreamError> {
-    let length = buffer.len();
+    let mut length = buffer.len();
 
     if index >= length {
         return Ok(None);
     } else if buffer[index] > 127 {
         return Err(ParseStreamError::ParseError(index));
     }
+
+    length -= 1;
     
     while index < length {
         let next = index+1;
