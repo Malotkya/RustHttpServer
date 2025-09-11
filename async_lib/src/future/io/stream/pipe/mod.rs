@@ -45,7 +45,7 @@ impl<
 > Stream for Pipe<Target, Source> {
     type Item = <Target as Stream>::Item;
 
-    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         if self.done {
             self.target().poll_next(cx)
         } else {
@@ -71,28 +71,40 @@ impl<
 
     pub fn new(source: &mut Source, target: &mut Target) -> Self {
         let mut pipe = Self {
-            source, target,
+            source: source as *mut Source,
+            target: target as *mut Target,
             emitter: EventEmitter::new(),
             done: false
         };
 
-        let mut task = PipeTask(
-            &mut pipe as *mut Self
-        );
+        let ptr = (&mut pipe) as *mut Self;
 
         crate::spawn_task(std::future::poll_fn(move|cx|{
-            task.poll(cx)
+            let pipe = unsafe {&mut *ptr };
+            let pin = unsafe{ Pin::new_unchecked( &mut *pipe ) };
+            
+            match Pipe::poll(pin, cx) {
+                Poll::Pending => Poll::Pending,
+                Poll::Ready(Ok(_)) => {
+                    pipe.emit("Done", "");
+                    Poll::Ready(())
+                },
+                Poll::Ready(Err(e)) => {
+                    pipe.emit("Error", format!("{:?}", e));
+                    Poll::Ready(())
+                }
+            }
         }));
         
         pipe
     }
 
-    pub fn source(&mut self) -> &mut Source {
-        unsafe{ &mut (*self.source) }
+    pub fn source(&mut self) -> Pin<&mut Source> {
+        unsafe{ Pin::new_unchecked(&mut (*self.source) ) }
     }
 
-    pub fn target(&mut self) -> &mut Target {
-        unsafe{ &mut (*self.target) }
+    pub fn target(&mut self) -> Pin<&mut Target> {
+        unsafe{ Pin::new_unchecked(&mut (*self.target) ) }
     }
 
     pub fn on<A: FromStr + 'static, E: Fn(A) + Sync + Send + 'static>(&mut self, event: &str, callback:E) -> String {
@@ -155,27 +167,6 @@ impl<
                 self.done = true;
                 //self.emit("Done", "");
                 Poll::Ready(Ok(()))
-            }
-        }
-    }
-}
-
-impl<
-    T: TargetPipe<Chunk: From<<S as Stream>::Item>> + 'static,
-    S: SourcePipe<Chunk: Into<T::Chunk>> + 'static
-> PipeTask<T, S> {
-    fn poll(&mut self, cx: &mut Context<'_>) -> std::task::Poll<()> {
-        let mut pipe = unsafe{ &mut (*self.0) };
-        
-        match Pipe::poll(Pin::new(&mut pipe), cx) {
-            Poll::Pending => Poll::Pending,
-            Poll::Ready(Ok(_)) => {
-                pipe.emit("Done", "");
-                Poll::Ready(())
-            },
-            Poll::Ready(Err(e)) => {
-                pipe.emit("Error", format!("{:?}", e));
-                Poll::Ready(())
             }
         }
     }
