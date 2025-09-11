@@ -99,7 +99,7 @@ pub fn build_router(args:RouterAttributes, handler:syn::ItemFn) -> Result<TokenS
             }
 
             impl http::Router for #name {
-                async fn handle(&self, req:&mut http::RequestBuilder<std::net::TcpStream>) -> Result<Option<http::Response>, http::HttpError> {
+                async fn handle(&self, req:&mut http::builder::RequestBuilder<http::async_net::TcpStream>) -> Result<Option<http::types::Response>, http::HttpError> {
                     match self.match_path(&req.url.pathname()) {
                         Some(param) => self.handler(req.build(param))#await_call.map(|rsp|Some(rsp)),
                         None => Ok(None)

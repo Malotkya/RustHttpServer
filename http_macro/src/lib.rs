@@ -12,7 +12,7 @@ pub fn path(data:TokenStream) -> TokenStream {
     let (regex_str, keys) = path::compile(&input, false, false);
 
     quote::quote! {
-        http::Path{
+        http::types::Path{
             regex: regex::RegexBuilder::new(#regex_str)
                     .case_insensitive(true).build().unwrap(),
             keys: [#(#keys),*]
