@@ -1,23 +1,24 @@
-pub use http_macro::{router, server};
-use async_lib::executor::{start_with_callback, shut_down};
-use async_lib::async_fn;
+pub use http::{
+    types::{Request, Response, ErrorRequest},
+    builder::{router, server}
+};
 
 #[router(path="/Hello/:Name")]
-async fn TestName(req: http::Request<TestNamePathParam>) -> http::Result {
-    Ok(http::Response::from(format!("Hello {}!", req.param.Name)))
+async fn TestName(req: Request<TestNamePathParam>) -> http::Result {
+    Ok(Response::from(format!("Hello {}!", req.param.Name)))
 }
 
 #[router(path="/")]
-async fn Home(_: http::Request<HomePathParam>) -> http::Result {
-    Ok(http::Response::from("Hello World!"))
+async fn Home(_: Request<HomePathParam>) -> http::Result {
+    Ok(Response::from("Hello World!"))
 }
 
-async fn error_handler(mut req:http::ErrorRequest) -> http::Response {
+async fn error_handler(mut req:ErrorRequest) -> Response {
     req.param.message = "You done messed up!".to_string();
-    http::Response::from_error(req.param)
+    Response::from_error(req.param)
 }
 
-#[server(port=8080, is_async=true)]
+#[server(port=8080)]
 struct ServerName ( 
     Home,
     TestName,
@@ -25,10 +26,6 @@ struct ServerName (
 );
 
 fn main() {
-
-    start_with_callback(async_fn!({
-        println!("Hello World!");
-        //shut_down();
-    }));
+    ServerName::start(4).unwrap();
 }
  
