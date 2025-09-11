@@ -6,7 +6,7 @@ use async_lib::{
 };
 
 pub use http_types::{
-    HttpError, HttpErrorKind
+    HttpError, HttpErrorKind, Result
 };
 
 mod protocol;
@@ -27,28 +27,39 @@ pub mod builder {
 
 pub mod json {
     pub use http_types::{
-        Json, JsonError, JsonRef, JsonValue, Result
+        Json, JsonError, JsonRef, JsonValue
     };
 }
 
 pub mod types {
     pub use http_types::{
         HttpHeader, Headers, HeaderName, HeaderValue, Version,
-        Method, Path, Request, Response, HttpStatus, Url
+        Method, Path, Request, ErrorRequest, Response, HttpStatus, Url
     };
 }
 
-pub mod future {
+pub mod async_net {
+    pub use async_lib::net::*;
+}
+
+pub mod async_io {
+    pub use async_lib::io::*;
+}
+
+pub mod async_fs {
+    pub use async_lib::fs::*;
+}
+
+pub mod event {
+    pub use async_lib::{
+        EventEmitter, EventEmitterWrapper
+    };
+}
+
+pub mod promise {
     pub use async_lib::{
         promise, Promise,
-        fs, io, net
     };
-
-    pub mod event {
-        pub use async_lib::{
-            EventEmitter, EventEmitterWrapper
-        };
-    }
 }
 
 pub mod executor {
