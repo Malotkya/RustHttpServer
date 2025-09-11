@@ -2,9 +2,11 @@ use std::{
     cmp,
     io,
     mem::MaybeUninit,
-    task::{Poll, Context}
+    task::{Poll, Context},
+    pin::{Pin, pin}
 };
-use super::{AsyncRead, PollRead};
+pub(crate) use super::{AsyncRead, AsyncWrite};
+pub(crate) use async_lib_macros::async_fn;
 
 mod read;
 pub use read::AsyncBufReader;
@@ -79,9 +81,10 @@ impl AsyncBuffer {
         self.pos = 0;
     }
 
-    pub fn poll_read_more(&mut self, cx:&mut Context<'_>, reader: &mut impl PollRead) -> Poll<io::Result<usize>> {
+    #[async_fn]
+    pub fn poll_read_more<R: AsyncRead>(mut self:Pin<&mut Self>, cx:&mut Context<'_>, reader:&mut R) -> Poll<io::Result<usize>> {
         let buf = unsafe{ self.unfilled_mut() };
-        let amt = match reader.poll_read(cx, buf) {
+        let amt = match pin!(reader.read(buf)).poll(cx) {
             Poll::Pending => return Poll::Pending,
             Poll::Ready(r) => match r {
                 Ok(size) => size,
@@ -93,8 +96,8 @@ impl AsyncBuffer {
     }
 }
 
-impl PollRead for AsyncBuffer {
-    fn poll_read(&mut self, _cx: &mut std::task::Context<'_> ,buf: &mut [u8]) -> Poll<io::Result<usize> > {
+impl AsyncRead for AsyncBuffer {
+    fn poll_read(self:Pin<&mut Self>, _cx: &mut std::task::Context<'_> ,buf: &mut [u8]) -> Poll<io::Result<usize> > {
         let amt = cmp::min(buf.len(), self.size());
         unsafe {
             buf.as_mut_ptr()
@@ -108,5 +111,3 @@ impl PollRead for AsyncBuffer {
         Poll::Ready(Ok(amt))
     }
 }
-
-impl AsyncRead for AsyncBuffer{}
