@@ -1,5 +1,5 @@
-use std::{collections::LinkedList, fmt, io::{BufRead, BufReader, Read} };
-
+use std::{collections::LinkedList, fmt };
+use async_lib::io::{AsyncRead, AsyncBufReader};
 mod tokens;
 pub use tokens::*;
 mod version;
@@ -50,12 +50,12 @@ fn next_chunk<'a>(buffer:&'a [u8], mut index:usize) -> Result<Option<usize>, Par
     Ok(None)
 }
 
-pub struct StreamParser<S> where S: Read{
+pub struct StreamParser<S> where S: AsyncRead{
     reader: Option<S>,
     buffer: LinkedList<Chunk>,
 }
 
-impl<S> StreamParser<S>  where S: Read{
+impl<S> StreamParser<S>  where S: AsyncRead{
     pub fn new(stream:S) -> Self {
         Self {
             reader: Some(stream),
@@ -63,11 +63,11 @@ impl<S> StreamParser<S>  where S: Read{
         }
     }
 
-    pub fn take_reader(&mut self) -> Option<BufReader<S>> {
-        self.reader.take().map(|s|BufReader::new(s))
+    pub fn take_reader(&mut self) -> Option<AsyncBufReader<S>> {
+        self.reader.take().map(|s|AsyncBufReader::new(s))
     }
 
-    pub fn parse(&mut self) -> Result<Option<Chunk>, ParseStreamError> {
+    pub async fn parse(&mut self) -> Result<Option<Chunk>, ParseStreamError> {
         if self.reader.is_none() {
             return Err(ParseStreamError::BufferTaken);
         }
@@ -76,10 +76,10 @@ impl<S> StreamParser<S>  where S: Read{
         if next.is_some() {
             return Ok(next);
         }
-        let mut reader = BufReader::new(self.reader.as_mut().unwrap());
+        let mut reader = AsyncBufReader::new(self.reader.as_mut().unwrap());
         let mut index: usize = 0;
         let sep_len = CHUNK_SEPERATOR.len();
-        let peek_buffer = reader.fill_buf()
+        let peek_buffer = reader.fill_buf().await
             .map_err(|e|ParseStreamError::ReadError(e))?;
 
         if peek_buffer.len() == 0 {
