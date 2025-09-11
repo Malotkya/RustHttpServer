@@ -176,6 +176,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "95505c38b4572b2d910cecb0281560f54b440a19336cbbcb27bf6ce6adc6f5a8"
 
 [[package]]
+name = "http"
+version = "0.1.0"
+dependencies = [
+ "async_lib",
+ "http_macro",
+ "http_types",
+ "lazy_static",
+ "regex",
+]
+
+[[package]]
 name = "http_macro"
 version = "0.1.0"
 dependencies = [
@@ -364,17 +375,6 @@ name = "regex-syntax"
 version = "0.8.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2b15c43186be67a4fd63bee50d0303afffcef381492ebe2c5d87f324e1b8815c"
-
-[[package]]
-name = "rust_http_server"
-version = "0.1.0"
-dependencies = [
- "async_lib",
- "http_macro",
- "http_types",
- "lazy_static",
- "regex",
-]
 
 [[package]]
 name = "rustversion"
