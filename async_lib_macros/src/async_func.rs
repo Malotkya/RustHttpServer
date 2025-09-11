@@ -125,7 +125,7 @@ pub fn build_async_function(sig:&syn::Signature, index: usize) -> proc_macro2::T
 
     quote::quote!{
         fn #name #generics (#args_types) -> impl Future<Output = #output> {
-            let mut pin = std::pin::Pin::new(self);
+            let mut pin = unsafe{ std::pin::Pin::new_unchecked(self) };
             std::future::poll_fn(move |cx|{
                 pin.as_mut().#ident(cx, #args_names)
             })
@@ -134,17 +134,32 @@ pub fn build_async_function(sig:&syn::Signature, index: usize) -> proc_macro2::T
 }
 
 pub fn async_function(input:proc_macro::TokenStream) -> proc_macro2::TokenStream {
-    let item = syn::parse::<syn::ItemFn>(input).unwrap();
+    let mut output: proc_macro2::TokenStream;
+    let public: syn::Visibility;
+    let signature = match syn::parse::<syn::ItemFn>(input.clone()) {
+        Ok(v) => {
+            output = quote::quote!( #v );
+            public = v.vis;
+            v.sig
+        },
+        Err(e) => match syn::parse::<syn::TraitItemFn>(input) {
+            Ok(v) => {
+                output = quote::quote!( #v );
+                public = syn::Visibility::Inherited;
+                v.sig
+            },
+            Err(_) => panic!("{}", e)
+        }
+    };
     
-    let index = item.sig.ident.to_string().find("poll")
+    let index = signature.ident.to_string().find("poll")
         .expect("Cannot turn non-poll function into an async function!");
 
-    let async_func = build_async_function(&item.sig, index);
+    let async_func = build_async_function(&signature, index);
 
-    let public = &item.vis;
-    
-    quote::quote! {
-        #item
+    output.extend(quote::quote!{
         #public #async_func
-    }
+    });
+
+    output
 }
