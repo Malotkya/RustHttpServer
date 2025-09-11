@@ -13,7 +13,25 @@ const CHUNK_SEPERATOR: &'static [u8] = b"\r\n";
 pub enum ParseStreamError {
     ReadError(std::io::Error),
     BufferTaken,
+    TryOffset,
     ParseError(usize)
+}
+
+impl ParseStreamError {
+    fn code(&self) -> u8 {
+        match self {
+            Self::ReadError(_) => 0,
+            Self::BufferTaken => 1,
+            Self::TryOffset => 2,
+            Self::ParseError(_) => 3
+        }
+    }
+}
+
+impl PartialEq for ParseStreamError {
+    fn eq(&self, other: &Self) -> bool {
+        self.code() == other.code()
+    }
 }
 
 impl fmt::Display for ParseStreamError {
@@ -21,6 +39,7 @@ impl fmt::Display for ParseStreamError {
         match self {
             Self::ReadError(e) => write!(f, "{}", e),
             Self::BufferTaken => write!(f, "Stream Buffer is taken!"),
+            Self::TryOffset => write!(f, "Invalid character at start!"),
             Self::ParseError(index) => write!(f, "Invalid character found at: {index}!")
         }
     }
@@ -32,7 +51,7 @@ fn next_chunk<'a>(buffer:&'a [u8], mut index:usize) -> Result<Option<usize>, Par
     if index >= length {
         return Ok(None);
     } else if buffer[index] > 127 {
-        return Err(ParseStreamError::ParseError(index));
+        return Err(ParseStreamError::TryOffset)
     }
 
     length -= 1;
@@ -49,19 +68,33 @@ fn next_chunk<'a>(buffer:&'a [u8], mut index:usize) -> Result<Option<usize>, Par
         index = next;
     }
 
-    Ok(None)
+    Ok(Some(index))
+}
+
+fn next_chunk_wrapper(buffer: &[u8], index: usize) -> Result<Option<(usize, usize)>, ParseStreamError> {
+    match next_chunk(buffer, index) {
+        Ok(Some(next)) => Ok(Some((index, next))),
+        Ok(None) => Ok(None),
+        Err(e) => if e == ParseStreamError::TryOffset {
+            next_chunk_wrapper(buffer, index+1)
+        } else {
+            Err(e)
+        }
+    }
 }
 
 pub struct StreamParser<S> where S: AsyncRead{
     reader: Option<S>,
     buffer: LinkedList<Chunk>,
+    end: bool
 }
 
 impl<S> StreamParser<S>  where S: AsyncRead{
     pub fn new(stream:S) -> Self {
         Self {
             reader: Some(stream),
-            buffer: LinkedList::new()
+            buffer: LinkedList::new(),
+            end: false
         }
     }
 
@@ -75,7 +108,7 @@ impl<S> StreamParser<S>  where S: AsyncRead{
         }
 
         let next = self.buffer.pop_front();
-        if next.is_some() {
+        if next.is_some() || self.end{
             return Ok(next);
         }
         let mut reader = AsyncBufReader::new(self.reader.as_mut().unwrap());
@@ -88,11 +121,15 @@ impl<S> StreamParser<S>  where S: AsyncRead{
             return Ok(None);
         }
 
-        while let Some(next) = next_chunk(peek_buffer, index)? {
-            let slice = &peek_buffer[index..next];
+        while let Some((start, end)) = next_chunk_wrapper(peek_buffer, index)? {
+            let slice = &peek_buffer[start..end];
+            if slice.len() == 0 {
+                self.end = true;
+                break;
+            }
             self.buffer.push_back(Chunk(Vec::from(slice)));
 
-            index = next + sep_len;
+            index = end + sep_len;
         }
         reader.consume(index);
 
