@@ -17,7 +17,7 @@ pub trait Sink : TargetPipe{
     fn poll_close(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>>;
 }
 
-impl<T> Sink for Vec<T> {
+impl<T:Clone> Sink for Vec<T> {
 
     fn poll_ready(self: Pin<&mut Self>, _ctx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         Poll::Ready(Ok(()))
@@ -28,7 +28,7 @@ impl<T> Sink for Vec<T> {
     }
 }
 
-impl<T> Sink for VecDeque<T> {
+impl<T:Clone> Sink for VecDeque<T> {
 
     fn poll_ready(self:Pin<&mut Self>, _: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         Poll::Ready(Ok(()))

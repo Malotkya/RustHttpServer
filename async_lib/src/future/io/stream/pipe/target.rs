@@ -5,7 +5,8 @@ use std::{
     pin::{Pin, pin},
     io,
     task::{Context, Poll},
-    fmt
+    fmt,
+    sync::Arc
 };
 use async_lib_macros::async_fn;
 use crate::future::Done;
@@ -15,29 +16,26 @@ pub trait TargetPipe {
     type Chunk;
     type Error: fmt::Debug;
 
-
-    /// ToDo: Figure out for this to not be backwards!! ///
-    fn poll_accept_next(self: Pin<&mut Self>, ctx: &mut Context<'_>, chunk:Self::Chunk) -> Poll<Result<(), Self::Error>>{
-        pin!( unsafe{ self.get_unchecked_mut() }.accept_next(chunk) ).poll(ctx)
-    }
+    fn poll_accept_next(self: Pin<&mut Self>, ctx: &mut Context<'_>, chunk:&Self::Chunk) -> Poll<Result<(), Self::Error>>;
     
-    async fn accept_next(self:&mut Self, chunk: Self::Chunk) -> Result<(),Self::Error>;
+    fn accept_next(self:&mut Self, chunk: Self::Chunk) -> impl Future<Output = Result<(),Self::Error>> {
+        let mut pin = unsafe{ Pin::new_unchecked(self) };
+
+        std::future::poll_fn(move |cx|{
+            pin.as_mut().poll_accept_next(cx, &chunk)
+        })
+    }
 
     #[async_fn]
     fn poll_flush(self: Pin<&mut Self>, ctx: &mut Context<'_>) -> Poll<Result<(), Self::Error>>;
 }
 
-impl<T> TargetPipe for Vec<T> {
+impl<T:Clone> TargetPipe for Vec<T> {
     type Chunk = T;
     type Error = Infallible;
 
-    fn accept_next(self:&mut Self, chunk: Self::Chunk) -> impl Future<Output = Result<(),Self::Error>> {
-        self.push(chunk);
-        Done::new(Ok(()))
-    }
-
-    fn poll_accept_next(self: Pin<&mut Self>, _cx: &mut Context<'_>, chunk:Self::Chunk) -> Poll<Result<(), Self::Error>> {
-        unsafe { self.get_unchecked_mut() }.push(chunk);
+    fn poll_accept_next(self: Pin<&mut Self>, _cx: &mut Context<'_>, chunk:&Self::Chunk) -> Poll<Result<(), Self::Error>> {
+        unsafe { self.get_unchecked_mut() }.push(chunk.clone());
         Poll::Ready(Ok(()))
     }
 
@@ -46,7 +44,7 @@ impl<T> TargetPipe for Vec<T> {
     }
 }
 
-impl<T> TargetPipe for VecDeque<T> {
+impl<T:Clone> TargetPipe for VecDeque<T> {
     type Chunk = T;
     type Error = Infallible;
 
@@ -55,8 +53,8 @@ impl<T> TargetPipe for VecDeque<T> {
         Done::new(Ok(()))
     }
     
-    fn poll_accept_next(self: Pin<&mut Self>, _cx: &mut Context<'_>, chunk:Self::Chunk) -> Poll<Result<(), Self::Error>> {
-        unsafe { self.get_unchecked_mut() }.push_back(chunk);
+    fn poll_accept_next(self: Pin<&mut Self>, _cx: &mut Context<'_>, chunk:&Self::Chunk) -> Poll<Result<(), Self::Error>> {
+        unsafe { self.get_unchecked_mut() }.push_back(chunk.clone());
         Poll::Ready(Ok(()))
     }
 
@@ -69,8 +67,8 @@ impl<S: TargetPipe + Unpin> TargetPipe for Box<S> {
     type Chunk = S::Chunk;
     type Error = S::Error;
 
-     fn accept_next(self:&mut Self, chunk: Self::Chunk) -> impl Future<Output = Result<(),Self::Error>> {
-        self.as_mut().accept_next(chunk)
+    fn poll_accept_next(self: Pin<&mut Self>, cx: &mut Context<'_>, chunk: &Self::Chunk) -> Poll<Result<(),Self::Error>> {
+        Pin::new(self.get_mut().as_mut()).poll_accept_next(cx, chunk)
     }
 
     fn poll_flush(self: Pin<&mut Self>, ctx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
