@@ -52,11 +52,20 @@ impl<
             Poll::Pending
         }
     }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        if self.done {
+            unsafe{& *self.target }.size_hint()
+        } else {
+            (0, None)
+        }
+        
+    }
 }
 
-impl<
+impl <
     Target: TargetPipe<Chunk: From<<Source as Stream>::Item>> + SourcePipe + 'static,
-    Source: SourcePipe<Chunk: Into<<Target as TargetPipe>::Chunk>> + 'static,
+    Source: SourcePipe<Chunk: Into<<Target as TargetPipe>::Chunk>> + 'static
 > SourcePipe for Pipe<Target, Source> {
 
     fn pipe<T: TargetPipe<Chunk: From<<Target as Stream>::Item>> + 'static>(&mut self, pipe: &mut T) -> Pipe<T, Self> {
@@ -151,7 +160,10 @@ impl<
         };
 
         let poll_continue: Poll<Result<bool, Target::Error>> = match into_chunk {
-            Some(value) => self.target().poll_accept_next(cx, value.into()).map(|r|r.map(|_|false)),
+            Some(value) => {
+                let chunk = value.into();
+                self.target().poll_accept_next(cx, &chunk).map(|r|r.map(|_|false))
+            },
             None => self.target().poll_flush(cx).map(|r|r.map(|_|true))
         };
 
