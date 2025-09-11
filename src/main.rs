@@ -26,6 +26,6 @@ struct ServerName (
 );
 
 fn main() {
-    ServerName::start(4).unwrap();
+    ServerName::start(1).unwrap();
 }
  
