@@ -25,9 +25,9 @@ pub struct Server<PARTS: ServerParts> {
 }
 
 impl<P: ServerParts> Server<P> {
-    pub fn new(parts:P) -> Self {
+    pub fn new() -> Self {
         Self{
-            parts
+            parts : P::new()
         }
     }
 
@@ -73,8 +73,8 @@ impl<P: ServerParts> Server<P> {
         )))
     }
 
-    fn start(thread_count: usize, callback_loop:impl Fn() -> Pin<Box<dyn Future<Output = ()>>> + 'static) -> std::io::Result<()> {
-        let server = Arc::new(Self::new(P::new()));
+    pub fn start(thread_count: usize, callback_loop:impl Fn() -> Pin<Box<dyn Future<Output = ()>>> + 'static) -> std::io::Result<()> {
+        let server = Arc::new(Self::new());
         let (listener, reciever) = server.gen_listeners()?;
 
         init_thread_pool_with_listener(thread_count, listener);
