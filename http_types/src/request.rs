@@ -1,9 +1,11 @@
 use super::{Url, Headers, Method, Version, JsonValue, JsonRef, HttpError};
+use async_lib::{
+    io::{AsyncRead, AsyncBufReader},
+    net::TcpStream
+};
 use std::{
     collections::HashMap,
-    io::BufReader,
     fmt,
-    net::TcpStream
 };
 
 pub enum BodyDataType {
@@ -51,17 +53,17 @@ pub struct FileData {
     pub data: Vec<u8>
 }
 
-pub struct RequestBuilder<STREAM: std::io::Read> {
+pub struct RequestBuilder<STREAM: AsyncRead> {
     pub url:Url,
     pub version:Version,
     pub method: Method,
     pub headers: Headers,
-    buffer: Option<BufReader<STREAM>>,
+    buffer: Option<AsyncBufReader<STREAM>>,
     body_used:bool
 }
 
-impl<S: std::io::Read> RequestBuilder<S> {
-    pub fn new(url:Url, method:Method, headers:Headers, version:Version, stream:Option<BufReader<S>>) -> Self{
+impl<S: AsyncRead> RequestBuilder<S> {
+    pub fn new(url:Url, method:Method, headers:Headers, version:Version, stream:Option<AsyncBufReader<S>>) -> Self{
         Self {
             url, method, headers,
             version,
@@ -99,7 +101,7 @@ impl RequestBuilder<TcpStream> {
     }
 }
 
-impl<S: std::io::Read> fmt::Debug for RequestBuilder<S> {
+impl<S: AsyncRead> fmt::Debug for RequestBuilder<S> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{} {}", self.method.to_str(), self.url.pathname())
     }
