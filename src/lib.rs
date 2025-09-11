@@ -1,20 +1,63 @@
 #![feature(str_from_raw_parts)]
-use http_types::{RequestBuilder, Response, HttpError};
+use http_types::{RequestBuilder};
 use async_lib::{
     io::AsyncRead,
     net::TcpStream
 };
 
+pub use http_types::{
+    HttpError, HttpErrorKind
+};
+
 mod protocol;
-pub use protocol::*;
-pub mod server;
-pub use server::*;
+pub(crate) use protocol::*;
+mod server;
+
 
 pub trait Router {
-    fn handle(&self, req:&mut RequestBuilder<TcpStream>) -> impl Future<Output = std::result::Result<Option<Response>, HttpError>>;
+    fn handle(&self, req:&mut RequestBuilder<TcpStream>)
+        -> impl Future<Output = std::result::Result<Option<types::Response>, HttpError>>;
 }
 
-pub(crate) fn log(req: &RequestBuilder<impl AsyncRead>, resp: &Response) {
+pub mod builder {
+    pub use http_types::RequestBuilder;
+    pub use super::server::*;
+    pub use http_macro::*;
+}
+
+pub mod json {
+    pub use http_types::{
+        Json, JsonError, JsonRef, JsonValue, Result
+    };
+}
+
+pub mod types {
+    pub use http_types::{
+        HttpHeader, Headers, HeaderName, HeaderValue, Version,
+        Method, Path, Request, Response, HttpStatus, Url
+    };
+}
+
+pub mod future {
+    pub use async_lib::{
+        promise, Promise,
+        fs, io, net
+    };
+
+    pub mod event {
+        pub use async_lib::{
+            EventEmitter, EventEmitterWrapper
+        };
+    }
+}
+
+pub mod executor {
+    pub use async_lib::executor::*;
+}
+
+
+
+pub(crate) fn log(req: &RequestBuilder<impl AsyncRead>, resp: &types::Response) {
     println!("{:?} {:?}", req, resp);
 }
 

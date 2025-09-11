@@ -6,7 +6,7 @@
 #![allow(dead_code)]
 
 mod event;
-pub use event::EventEmitter;
+pub use event::{EventEmitter, EventEmitterWrapper};
 pub mod executor;
 mod future;
 pub use future::*;
