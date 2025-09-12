@@ -21,7 +21,10 @@ fn missing_error(name: &str) -> String {
 impl Parse for HeaderArguments {
     fn parse(input:ParseStream) -> syn::Result<Self> {
         let item = input.parse::<syn::ItemStruct>()?;
-        input.parse::<syn::Token![,]>()?;
+
+        if input.peek(syn::Token![;]) {
+            input.parse::<syn::Token![;]>()?;
+        }
 
         let mut new:  Option<syn::ItemFn> = None;
         let mut name: Option<syn::Path> = None;
@@ -93,8 +96,8 @@ impl Parse for HeaderArguments {
                 }
             }
 
-            if input.peek(syn::Token![,]) {
-                input.parse::<syn::Token![,]>()?;
+            if !input.peek(syn::parse::End) {
+                input.parse::<syn::Token![;]>()?;
             }
         }
 
@@ -121,20 +124,83 @@ impl Parse for HeaderArguments {
     }
 }
 
+fn append_lifetime(original:&syn::Generics) -> (syn::Lifetime, syn::Generics) {
+    let mut clone = original.clone();
+    if let Some(value) = clone.lifetimes().next() {
+        (
+            value.lifetime.clone(),
+            clone
+        )
+    } else {
+        let new = syn::Lifetime::new("'a", proc_macro2::Span::call_site());
+        clone.params.push(syn::GenericParam::Lifetime(
+            syn::LifetimeParam::new(new.clone())
+        ));
+        (
+            new,
+            clone
+        )
+    }
+}
+
+fn build_impl_generics(original: &syn::Generics) -> syn::Result<Option<syn::Generics>> {
+    if original.params.iter().next().is_none() {
+        return Ok(None)
+    }
+
+    let mut params: syn::punctuated::Punctuated<syn::GenericParam, syn::Token![,]>
+        = syn::punctuated::Punctuated::new();
+
+    for param in original.params.iter() {
+        match param {
+            syn::GenericParam::Type(t) => params.push(syn::GenericParam::Type(
+                syn::TypeParam::from(t.ident.clone())
+            )),
+            syn::GenericParam::Const(c) => return Err(
+                syn::Error::new(
+                    c.span(),
+                    "Unable to parse const generics!"
+                )
+            ),
+            syn::GenericParam::Lifetime(l) => {
+                params.push(syn::GenericParam::Lifetime(
+                syn::LifetimeParam::new(
+                    l.lifetime.clone()
+                )
+            ))}
+        }
+    }
+
+    Ok(Some(syn::Generics{
+        lt_token: Some(syn::Token![<](original.lt_token.span())),
+        gt_token: Some(syn::Token![>](original.gt_token.span())),
+        where_clause: None,
+        params
+    }))
+}
+
 pub fn build_header_type(input:proc_macro::TokenStream) -> proc_macro2::TokenStream {
     let HeaderArguments{
-        item, new, name, from, to_string, parse
+        mut item, new, name, from, to_string, parse
     } = syn::parse(input).unwrap();
 
+    item.vis = syn::Visibility::Public(syn::token::Pub(item.span()));
+
+    item.fields.iter_mut().for_each(|field|{
+        field.vis = syn::Visibility::Public(syn::token::Pub(field.span()));
+    });
+
     let struct_name = &item.ident;
-    let generics =  if item.generics.lifetimes().count() > 0 {
-        quote::quote!(<'a>)
+    let impl_generics =  if item.generics.params.iter().count() == 0 {
+        None
     } else {
-        quote::quote! ()
+        Some(item.generics.clone())
     };
+    let (from_lifetime, from_gen_impl) = append_lifetime(&item.generics);
+    let struct_generics = build_impl_generics(&item.generics).unwrap();
 
     let parse = parse.map(|func| quote::quote!{
-        impl<'a> super::ParseType<'a> for #struct_name #generics {
+        impl<'a> super::ParseType<'a> for #struct_name #impl_generics {
             #func
         }
         
@@ -145,21 +211,22 @@ pub fn build_header_type(input:proc_macro::TokenStream) -> proc_macro2::TokenStr
 
         #parse
 
-        impl #generics #struct_name #generics {
+        impl #impl_generics #struct_name #struct_generics {
             pub #new
         }
 
-        impl #generics super::HttpHeader for #struct_name #generics {
+        impl #impl_generics super::HttpHeader for #struct_name #struct_generics {
             fn name() -> super::HeaderName {
                 #name
             }
         }
 
-        impl <'a> From<&'a super::HeaderType<'a>> for #struct_name #generics {
+        impl #from_gen_impl From<& #from_lifetime super::HeaderType<#from_lifetime>>
+                for #struct_name #struct_generics {
             #from
         }
 
-        impl #generics ToString for #struct_name #generics {
+        impl #impl_generics ToString for #struct_name #struct_generics {
             #to_string
         }
     }
