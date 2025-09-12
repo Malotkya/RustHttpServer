@@ -1,18 +1,18 @@
 use std::{
-    sync::Arc,
+    rc::Rc,
     str::FromStr,
     task::{Context, Poll},
     pin::Pin
 };
 
 pub struct Listener {
-    callback: Arc<dyn Fn(String) + Sync + Send + 'static>,
+    callback: Rc<dyn Fn(String) + Sync + Send + 'static>,
     limit: Option<usize>,
     pub(crate) id: String
 }
 
 struct ListenerTask {
-    callback: Arc<dyn Fn(String) + Sync + Send + 'static>,
+    callback: Rc<dyn Fn(String) + Sync + Send + 'static>,
     arg: String
 }
 
@@ -30,7 +30,7 @@ impl Listener {
         Self {
             id: uuid::Uuid::new_v4().to_string(),
             limit,
-            callback: Arc::new(move |str:String| {
+            callback: Rc::new(move |str:String| {
                 match str.parse() {
                     Ok(value) => e(value),
                     Err(_) => print!("An error occured when parsing {}!", str)
@@ -50,7 +50,7 @@ impl Listener {
         }
         //let string = value.to_string();
         let arg = value.to_string();
-        let callback = Arc::clone(&self.callback);
+        let callback = Rc::clone(&self.callback);
         crate::spawn_task(ListenerTask{
             arg, callback
         });

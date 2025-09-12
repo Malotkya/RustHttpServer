@@ -8,7 +8,8 @@ use std::{
     sync::{
         mpsc,
         Arc
-    }
+    },
+    rc::Rc
 };
 
 mod helpers;
@@ -42,7 +43,7 @@ impl<P: ServerParts> Server<P> {
     pub fn gen_listeners(self: Arc<Self>) -> std::io::Result<(impl Fn() + Send + Sync + 'static, impl Fn() -> Pin<Box<dyn Future<Output = ()>>> + 'static)> {
         let (conn_send, conn_recv) = mpsc::channel::<TcpStream>();
         let conn_send = Arc::new(conn_send);
-        let conn_recv = Arc::new(conn_recv);
+        let conn_recv = Rc::new(conn_recv);
 
         let listener = TcpListener::bind(self.to_string())?;
         let data = self;
