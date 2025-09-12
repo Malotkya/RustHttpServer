@@ -1,9 +1,6 @@
 use std::{
-    ops::DerefMut,
-    io,
     pin::{pin, Pin},
     task::{Context, Poll},
-    sync::{Arc, Mutex},
     str::FromStr
 };
 use crate::EventEmitter;

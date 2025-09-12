@@ -1,9 +1,6 @@
 use std::{
     collections::VecDeque,
-    convert::Infallible,
-    ops::DerefMut,
     pin::Pin,
-    io,
     task::{Context, Poll}
 };
 use async_lib_macros::async_trait;

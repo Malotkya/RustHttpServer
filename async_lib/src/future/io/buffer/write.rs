@@ -5,7 +5,6 @@ use crate::future::io::{
 use super::{AsyncWrite, async_fn};
 use std::{
     io,
-    sync::Arc,
     task::{Context, Poll},
     pin::{Pin, pin}
 };

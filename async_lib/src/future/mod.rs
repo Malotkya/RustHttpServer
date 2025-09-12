@@ -1,8 +1,9 @@
+use std::ops::DerefMut;
+
 pub mod fs;
 pub mod io;
 pub mod net;
 mod promise;
-use std::ops::DerefMut;
 
 pub use promise::Promise;
 

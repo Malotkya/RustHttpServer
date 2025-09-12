@@ -1,6 +1,5 @@
 use std::{
     collections::VecDeque,
-    ops::DerefMut,
     pin::{Pin, pin},
     task::{Context, Poll}
 };

@@ -1,12 +1,9 @@
 use std::{
     collections::VecDeque,
     convert::Infallible,
-    ops::{DerefMut, Deref},
     pin::{Pin, pin},
-    io,
     task::{Context, Poll},
     fmt,
-    sync::Arc
 };
 use async_lib_macros::async_fn;
 use crate::future::Done;

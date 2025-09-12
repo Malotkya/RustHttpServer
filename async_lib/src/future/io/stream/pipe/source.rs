@@ -1,10 +1,5 @@
 use std::{
     collections::VecDeque,
-    convert::Infallible,
-    ops::DerefMut,
-    pin::Pin,
-    io,
-    task::{Context, Poll}
 };
 use super::super::Stream;
 use super::{TargetPipe, Pipe};
