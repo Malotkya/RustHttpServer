@@ -3,6 +3,7 @@ use proc_macro::TokenStream;
 mod path;
 mod router;
 mod headers;
+mod header_types;
 mod util;
 mod server;
 
@@ -18,6 +19,11 @@ pub fn path(data:TokenStream) -> TokenStream {
             keys: [#(#keys),*]
         }
     }.into()
+}
+
+#[proc_macro]
+pub fn build_header_value(data:TokenStream) -> TokenStream {
+    header_types::build_header_type(data).into()
 }
 
 #[proc_macro_attribute]
