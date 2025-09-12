@@ -18,21 +18,21 @@ build_header_value!(
         pub range: MediaType<'a>,
         pub q: Option<QValue>,
         pub extensions: HashMap<&'a str, &'a str>
-    },
+    };
     fn new() -> Self {
         Self {
             range: MediaType::new(),
             q: None,
             extensions: HashMap::new()
         }
-    },
-    HeaderName::Accept,
+    };
+    HeaderName::Accept;
     fn from(value: &'a HeaderType<'a>) -> Self {
         match value {
             HeaderType::WildCard => Self::new(),
             HeaderType::Text(str) => parse(str)
         }
-    },
+    };
     fn to_string(&self) -> String {
         let mut output = self.range.to_string();
 
@@ -51,10 +51,10 @@ build_header_value!(
         }
 
         output
-    },
+    };
     fn parse(value: &'a HeaderType<'a>) -> Vec<Self> {
         value.as_str().split(",").map(parse).collect()
-    }
+    };
 );
 
 fn parse<'a>(str:&'a str) -> AcceptValueType<'a> {

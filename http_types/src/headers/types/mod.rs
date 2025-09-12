@@ -2,11 +2,11 @@ macro_rules! header_type_imports {
     (imports: $($name:path),+ ) => {
         $(pub use $name::*;)+
     };
-    (implement: $( ($name:ident, $type:ident),)+) => {
+    (implement: $( ($name:ident, $type:ident$(< $life:lifetime >)?),)+) => {
         #[allow(dead_code)]
         impl<'a> HeaderType<'a> {
             $(
-                fn $name(&'a self) -> $type<'a> {
+                fn $name(& $( $life )? self) -> $type$(< $life >)? {
                     self.into()
                 }
             )+
@@ -23,16 +23,20 @@ macro_rules! header_type_imports {
             }
         }
     };
-    ( $( ($mod:ident, $type:ident); )+ ) => {
+    ( $( ($mod:ident, $type:ident$(< $life:lifetime >)?, $func_name:ident ); )+ ) => {
         header_type_imports!(imports: $($mod),+);
-        header_type_imports!(implement: $( ($mod, $type), )+);
+        header_type_imports!(implement: $( ($func_name, $type$(< $life >)?), )+);
     }
 }
 
-mod media_type;
-mod accept_value;
-mod charset;
 pub use super::{HttpHeader, HeaderName};
+
+mod accept_value;
+mod age;
+mod charset;
+mod language;
+mod media_type;
+mod range;
 
 pub type QValue = f32;
 
@@ -48,9 +52,12 @@ pub enum HeaderType<'a> {
 }
 
 header_type_imports!(
-    (media_type, MediaType);
-    (accept_value, AcceptValueType);
-    (charset, Charset);
+    (media_type, MediaType<'a>, media_type);
+    (accept_value, AcceptValueType<'a>, accept);
+    (charset, Charset<'a>, charset);
+    (language, LanguageValue<'a>, language);
+    (range, RangeValue, range);
+    (age, AgeValue, age);
 );
 
 

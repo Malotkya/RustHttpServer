@@ -12,20 +12,20 @@ build_header_value!(
     pub struct Charset<'a> {
         pub charset: HeaderType<'a>,
         pub q: Option<QValue>
-    },
+    };
     fn new() -> Self {
         Self {
             charset: HeaderType::WildCard,
             q: None
         }
-    }
-    HeaderName::AcceptCharset,
+    };
+    HeaderName::AcceptCharset;
     fn from(value:&'a HeaderType<'a>) -> Self {
         parse(value.as_str())
-    },
+    };
     fn parse(value:&'a HeaderType<'a>) -> Vec<Self> {
         value.as_str().split(",").map(parse).collect()
-    },
+    };
     fn to_string(&self) -> String {
         let mut output = self.charset.as_str().to_owned();
 
