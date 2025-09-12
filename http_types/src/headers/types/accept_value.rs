@@ -10,44 +10,52 @@
 /// accept-extension = ";" [token] ["=" [token \ quoted-string]]?
 /// 
 use std::collections::{HashMap, VecDeque};
-use super::{MediaType, QValue, HeaderType, HttpHeader, HeaderName, ParseType};
+use http_macro::build_header_value;
+use super::{MediaType, QValue, HeaderType, HeaderName};
 
-pub struct AcceptValueType<'a> {
-    pub range: MediaType<'a>,
-    pub q: Option<QValue>,
-    pub extensions: HashMap<&'a str, &'a str>
-}
-
-impl<'a> AcceptValueType<'a> {
-    pub fn new() -> Self {
+build_header_value!(
+    pub struct AcceptValueType<'a> {
+        pub range: MediaType<'a>,
+        pub q: Option<QValue>,
+        pub extensions: HashMap<&'a str, &'a str>
+    },
+    fn new() -> Self {
         Self {
             range: MediaType::new(),
             q: None,
             extensions: HashMap::new()
         }
-    }
-}
-
-impl<'a> HttpHeader for AcceptValueType<'a> {
-    fn name() -> HeaderName {
-        HeaderName::Accept
-    }
-}
-
-impl<'a> From<&'a HeaderType<'a>> for AcceptValueType<'a> {
+    },
+    HeaderName::Accept,
     fn from(value: &'a HeaderType<'a>) -> Self {
         match value {
             HeaderType::WildCard => Self::new(),
             HeaderType::Text(str) => parse(str)
         }
-    }
-}
+    },
+    fn to_string(&self) -> String {
+        let mut output = self.range.to_string();
 
-impl<'a> ParseType<'a> for AcceptValueType<'a> {
+        if self.q.is_some() {
+            output.push_str("; q=");
+            output.push_str(&self.q.as_ref().unwrap().to_string());
+        }
+
+        for (key, value) in self.extensions.iter()  {
+            output.push_str("; ");
+            output.push_str(key);
+            if value.len() > 0 {
+                output.push_str("=");
+                output.push_str(value);
+            }
+        }
+
+        output
+    },
     fn parse(value: &'a HeaderType<'a>) -> Vec<Self> {
         value.as_str().split(",").map(parse).collect()
     }
-}
+);
 
 fn parse<'a>(str:&'a str) -> AcceptValueType<'a> {
     let mut lines:VecDeque<_> = str.split(";").collect();
@@ -75,7 +83,7 @@ fn parse<'a>(str:&'a str) -> AcceptValueType<'a> {
                     extensions.insert(key, value);
                 }
             },
-            None => {
+            None => { 
                 extensions.insert(str, "");
             }
         }
@@ -83,27 +91,5 @@ fn parse<'a>(str:&'a str) -> AcceptValueType<'a> {
 
     AcceptValueType {
         range, q, extensions
-    }
-}
-
-impl<'a> ToString for AcceptValueType<'a> {
-    fn to_string(&self) -> String {
-        let mut output = self.range.to_string();
-
-        if self.q.is_some() {
-            output.push_str("; q=");
-            output.push_str(&self.q.as_ref().unwrap().to_string());
-        }
-
-        for (key, value) in self.extensions.iter()  {
-            output.push_str("; ");
-            output.push_str(key);
-            if value.len() > 0 {
-                output.push_str("=");
-                output.push_str(value);
-            }
-        }
-
-        output
     }
 }

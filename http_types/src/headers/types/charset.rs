@@ -5,32 +5,27 @@
 /// 
 /// "Accept-Charset" ":" ( [charset | *] [";" "q" "=" qvalue]? ),
 /// 
-use super::{HeaderType, QValue, HttpHeader, HeaderName, ParseType};
+use http_macro::build_header_value;
+use super::{HeaderName, QValue, HeaderType};
 
-pub struct Charset<'a>{
-    pub charset: HeaderType<'a>,
-    pub q: Option<QValue>
-}
-
-impl<'a> HttpHeader for Charset<'a> {
-    fn name() -> HeaderName {
-        HeaderName::AcceptCharset
+build_header_value!(
+    pub struct Charset<'a> {
+        pub charset: HeaderType<'a>,
+        pub q: Option<QValue>
+    },
+    fn new() -> Self {
+        Self {
+            charset: HeaderType::WildCard,
+            q: None
+        }
     }
-}
-
-impl<'a> From<&'a HeaderType<'a>> for Charset<'a> {
+    HeaderName::AcceptCharset,
     fn from(value:&'a HeaderType<'a>) -> Self {
         parse(value.as_str())
-    }
-}
-
-impl<'a> ParseType<'a> for Charset<'a> {
+    },
     fn parse(value:&'a HeaderType<'a>) -> Vec<Self> {
         value.as_str().split(",").map(parse).collect()
-    }
-}
-
-impl<'a> ToString for Charset<'a> {
+    },
     fn to_string(&self) -> String {
         let mut output = self.charset.as_str().to_owned();
 
@@ -41,7 +36,7 @@ impl<'a> ToString for Charset<'a> {
 
         output
     }
-}
+);
 
 fn parse<'a>(str:&'a str) -> Charset<'a>{
     let lines: Vec<_> = str.split(";").collect();
@@ -78,14 +73,5 @@ fn parse<'a>(str:&'a str) -> Charset<'a>{
     Charset {
         charset,
         q
-    }
-}
-
-impl<'a> Charset<'a> {
-    pub fn new() -> Self {
-        Self {
-            charset: HeaderType::WildCard,
-            q: None
-        }
     }
 }
