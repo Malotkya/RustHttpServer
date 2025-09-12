@@ -1,11 +1,11 @@
 use std::{
-    io,
     net,
     time::Duration,
     task::{Context, Poll},
     async_iter::AsyncIterator,
     pin::Pin
 };
+use crate::io;
 use async_lib_macros::{deref_inner_async, async_fn};
 
 const STOP_BLOCK_ATTEMPT:u8 = 10;
