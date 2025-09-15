@@ -1,7 +1,7 @@
 use super::super::AttributeEnum;
 
 AttributeEnum!(
-    AutoComplete, None,
+    AutoComplete,
     (None, "none"),
     (Inline, "inline"),
     (List, "list"),
@@ -32,7 +32,7 @@ AttributeEnum!(
 );
 
 AttributeEnum!(
-    Sort, None,
+    Sort,
     (Ascending, "ascending"),
     (Descending, "descending"),
     (Other, "other"),

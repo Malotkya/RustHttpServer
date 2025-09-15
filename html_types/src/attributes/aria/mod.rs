@@ -31,8 +31,8 @@ macro_rules! MakeAriaAttributeList {
             (live, "aria-live"): Live,
             (owns, "aria-owns"): SpaceSeperatedList,
             (relevant, "aria-relevant"): Relevant,
-            (role_description, "aria-roledescription": String),
-            $( ($key_ident, $key_literal): $type:ty ),*
+            (role_description, "aria-roledescription"): String
+            $(, ($key_ident, $key_literal): $type )*
         );
     };
     (
@@ -58,7 +58,7 @@ macro_rules! MakeAriaAttributeList {
 
                 $(
                     if self.$key_ident.is_some() {
-                        output.push_str(&format_string($key_literal, self.$key_ident.as_ref().unwrap()));
+                        output.push_str(&crate::attributes::format_string($key_literal, self.$key_ident.as_ref().unwrap()));
                         output.push(' ');
                     }
                 )+
@@ -74,7 +74,7 @@ MakeAriaAttributeList!(
     (autocomplete, "aria-autocomplete"): AutoComplete,
     (checked, "aria-checked"): Enumerable,
     (expanded, "aria-expanded"): Enumerable,
-    (level, "aria-level"): Integer,
+    (level, "aria-level"): usize,
     (modal, "aria-modal"): Enumerable,
     (multiline, "aria-multiline"): Enumerable,
     (multiselect, "aria-multiselect"): Enumerable,
@@ -92,14 +92,14 @@ MakeAriaAttributeList!(
 );
 
 MakeAriaAttributeList!(
-    LiveAttributes,
+    LiveAttributes
     //pub busy: Option<Enumerable>, //Global
-    (live, "aria-live"): Enumerable
+    //(live, "aria-live"): Enumerable
     //pub relevant: Option<Relevant>,
     //pub atomic: Option<Enumerable> //Global
 );
 
-MakeAriaAttributeList(
+MakeAriaAttributeList!(
     RelationshipAttributes,
     (active_descendant, "aria-activedescendant"): String,
     (col_count, "aria-colcount"): usize,
@@ -109,7 +109,7 @@ MakeAriaAttributeList(
     //pub described_by: Option<SpaceSeperatedList>, //Global
     //pub details: Option<String>, //Global
     //pub error_messsage: Option<String>,
-    (flow_to, "aria-flowto"): SpaceSeperatedList,
+    //(flow_to, "aria-flowto"): SpaceSeperatedList,
     (labelled_by, "aria-labelledby"): String,
     //pub owns: Option<SpaceSeperatedList>, //Global
     (pos_inset, "aria-posinset"): usize,
