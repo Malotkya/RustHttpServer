@@ -4,24 +4,16 @@ use std::{
     ops::{Deref, DerefMut},
     str::FromStr
 };
-use super::{Attribute};
 
-mod basic;
-pub use basic::*;
+mod custom;
+pub use custom::*;
 mod enums;
 pub use enums::*;
 
-pub use super::aria::types::{
-    AutoComplete as AriaAutoComplete,
-    PopUp as AriaPopUp,
-    Orientation as AriaOrientation,
-    Pressed as AriaPressed,
-    Sort as AriaSort,
-    Live as AriaLive,
-    Relevant as AriaRelevant,
-    DropEffect as AriaDropEffect,
-    Current as AriaCurrent,
-};
+AttributeEnum!(
+    Enumerable,
+    Boolean
+);
 
 pub struct SpaceSeperatedList(HashSet<String>);
 
@@ -55,30 +47,11 @@ impl From<String> for SpaceSeperatedList {
     }
 }
 
-impl Attribute for SpaceSeperatedList {
-    fn generate(&self, name:&str) -> String {
-        let mut it = self.0.iter();
-        let mut string;
-
-        if let Some(first) = it.next() {
-            string = String::with_capacity(self.0.len() * 10);
-            string.push_str(first);
-        } else {
-            string = String::new()
-        };
-
-        while let Some(next) = it.next() {
-            string.push_str(next);
-        }
-
-        let mut output = String::with_capacity(name.len() + string.len() + 3);
-
-        output.push_str(name);
-        output.push_str("=\"");
-        output.push_str(&string);
-        output.push('"');
-
-        output
+impl ToString for SpaceSeperatedList {
+    fn to_string(&self) -> String {
+        self.0.iter().map(|s|s.clone())
+            .collect::<Vec<String>>()
+            .join(" ")
     }
 }
 
@@ -131,42 +104,70 @@ impl ToString for Value {
     }
 }
 
-impl Attribute for Value {
-    fn generate(&self, name:&str) -> String {
-        let mut output = name.to_string();
+macro_rules! AttributeEnum {
+    (
+        $enum_name:ident,
+        $( ($name:ident, $value:literal), )*
+        Boolean
+    ) => {
+        $crate::attributes::AttributeEnum!(
+            $enum_name,
+            $( ($name, $value), )*
+            (True, "true"),
+            (False, "false")
+        );
 
-        output.push_str("=\"");
-        match self {
-            Self::String(s) => output.push_str(s),
-            Self::Number(f) => output.push_str(&f.to_string())
-        };
-        output.push('"');
+        impl From<bool> for $enum_name {
+            fn from(value: bool) -> Self {
+                if value {
+                    Self::True
+                } else {
+                    Self::False
+                }
+            }
+        }
+    };
+    (
+        $enum_name:ident,
+        $( ($name:ident, $value:literal) ),+
+    ) => {
+        pub enum $enum_name {
+            $( $name ),+
+        }
 
-        output
-    }
+        impl $enum_name {
+            pub fn as_str(&self) -> &'static str {
+                match self {
+                    $(Self::$name => $value),+
+                }
+            }
+        }
+
+        impl ToString for $enum_name {
+            fn to_string(&self) -> String {
+                self.as_str().to_string()
+            }
+        }
+
+        impl TryFrom<&str> for $enum_name {
+            type Error = String;
+
+            fn try_from(value:&str) -> Result<Self, String> {
+                match value.to_ascii_lowercase().as_str() {
+                    $( $value => Ok(Self::$name), )*
+                    _ => Err(format!("{} is not {}!", value, stringify!($enum_name)))
+                }
+            }
+        }
+
+        impl TryFrom<String> for $enum_name {
+            type Error = String;
+
+            fn try_from(value: String) -> Result<Self, String> {
+                TryInto::<Self>::try_into(value.as_str())
+            }
+        }
+    };
 }
 
-struct CustomAttributes(HashMap<String, String>);
-
-impl Deref for CustomAttributes {
-    type Target = HashMap<String, String>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl DerefMut for CustomAttributes {
-
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
-    }
-}
-
-impl Attribute for CustomAttributes {
-    fn generate(&self, _:&str) -> String {
-        self.0.iter()
-            .map(|(key, value)|basic_as_string(key, value))
-            .collect::<Vec<String>>().join(" ")
-    }
-}
+pub(crate) use AttributeEnum;

@@ -1,82 +1,122 @@
 
 pub(crate) mod types;
 use types::*;
-use super::types::{Value, SpaceSeperatedList, Enumerable, Integer};
+use super::types::{Value, SpaceSeperatedList, Enumerable};
 
-pub struct WidgetAttributes {
-    pub autocomplete: Option<AutoComplete>,
-    pub checked: Option<Enumerable>,
-    //pub disabled: Option<Enumerable>, Global
-    //pub error_message: Option<String>, Global
-    pub expanded: Option<Enumerable>,
-    //pub has_popup: Option<Enumerable>, Global
-    //pub hidden: Option<Enumerable>, Global
-    //pub invalid: Option<Enumerable>, Global
-    // pub label: Option<String>,
-    pub level: Option<usize>,
-    pub modal: Option<Enumerable>,
-    pub multiline: Option<Enumerable>,
-    pub multiselect: Option<Enumerable>,
-    pub orientation: Option<Orientation>,
-    pub placeholder: Option<String>,
-    pub pressed: Option<Pressed>,
-    pub readonly: Option<Enumerable>,
-    pub required: Option<Enumerable>,
-    pub selected: Option<Enumerable>,
-    pub sort: Option<Sort>,
-    pub value_max: Option<Value>,
-    pub value_min: Option<Value>,
-    pub value_now: Option<Value>,
-    pub value_text: Option<String>
+macro_rules! MakeAriaAttributeList {
+    (
+        $list_name: ident
+        $(, ($key_ident: ident, $key_literal:literal): $type:ty )*
+    ) => {
+        MakeAriaAttributeList!(
+            Combine: $list_name,
+            (atomic, "aria-atomic"): Enumerable,
+            (busy, "aria-busy"): Enumerable,
+            (controls, "aria-controls"): String,
+            (current, "aria-current"): Current,
+            (described_by, "aria-descripbedby"): SpaceSeperatedList,
+            (description, "aria-description"): String,
+            (details, "aria-details"): String,
+            (disabled, "aria-disabled"): String,
+            (drop_effect, "aria-dropeffect"): DropEffect,
+            (error_message, "aria-errormessage"): String,
+            (flow_to, "aria-flowto"): SpaceSeperatedList,
+            (grabbed, "aria-grabbed"): Enumerable,
+            (has_popup, "aria-haspopup"): PopUp,
+            (hidden, "aria-hidden"): Enumerable,
+            (invalid, "aria-invalid"): Enumerable,
+            (key_shortcut, "aria-keyshortcut"): String,
+            (label, "aria-label"): String,
+            (labeled_by, "aria-labedby"): SpaceSeperatedList,
+            (live, "aria-live"): Live,
+            (owns, "aria-owns"): SpaceSeperatedList,
+            (relevant, "aria-relevant"): Relevant,
+            (role_description, "aria-roledescription": String),
+            $( ($key_ident, $key_literal): $type:ty ),*
+        );
+    };
+    (
+        Combine: $list_name:ident,
+        $( ($key_ident: ident, $key_literal:literal): $type:ty ),+
+    ) => {
+        pub struct $list_name {
+            $($key_ident: Option<$type>), +
+        }
+
+        impl $list_name {
+            pub fn new() -> Self {
+                Self{
+                    $($key_ident: None), +
+                }
+            }
+        }
+
+        impl ToString for $list_name {
+            fn to_string(&self) -> String {
+                let count:usize = ${count($key_ident)};
+                let mut output:String = String::with_capacity(count * 24); //Just a guess 24 = [char; 10] '=' '"' [char; 10] '"' ' '
+
+                $(
+                    if self.$key_ident.is_some() {
+                        output.push_str(&format_string($key_literal, self.$key_ident.as_ref().unwrap()));
+                        output.push(' ');
+                    }
+                )+
+
+                output
+            }
+        }
+    };
 }
 
-pub struct LiveAttributes {
-    //pub busy: Option<Enumerable>, Global
-    pub live: Option<Enumerable>,
+MakeAriaAttributeList!(
+    WidgetAttributes,
+    (autocomplete, "aria-autocomplete"): AutoComplete,
+    (checked, "aria-checked"): Enumerable,
+    (expanded, "aria-expanded"): Enumerable,
+    (level, "aria-level"): Integer,
+    (modal, "aria-modal"): Enumerable,
+    (multiline, "aria-multiline"): Enumerable,
+    (multiselect, "aria-multiselect"): Enumerable,
+    (orientation, "aria-orientation"): Orientation,
+    (placeholder, "aria-placeholder"): String,
+    (pressed, "aria-pressed"): Pressed,
+    (readonly, "aria-readonly"): Enumerable,
+    (required, "aria-required"): Enumerable,
+    (selected, "aria-selected"): Enumerable,
+    (sort, "aria-sort"): Sort,
+    (value_max, "aria-valuemax"): Value,
+    (value_min, "aria-valuemin"): Value,
+    (value_now, "aria-valuenow"): Value,
+    (value_text, "aria-valuetext"): String    
+);
+
+MakeAriaAttributeList!(
+    LiveAttributes,
+    //pub busy: Option<Enumerable>, //Global
+    (live, "aria-live"): Enumerable
     //pub relevant: Option<Relevant>,
-    //pub atomic: Option<Enumerable> Global
-}
+    //pub atomic: Option<Enumerable> //Global
+);
 
-pub struct RelationshipAttributes {
-    pub activedescendat: Option<String>,
-    pub col_count: Option<Integer>,
-    pub col_index: Option<Integer>,
-    pub col_span: Option<Integer>,
-    //pub controls: Option<String>, Global
-    //pub described_by: Option<SpaceSeperatedList>, Global
-    //pub details: Option<String>, Global
-    pub error_messsage: Option<String>,
-    pub flow_to: Option<SpaceSeperatedList>,
-    pub labelled_by: Option<String>,
-    //pub owns: Option<SpaceSeperatedList>, Global
-    pub posinset: Option<Integer>,
-    pub row_count: Option<Integer>,
-    pub row_index: Option<Integer>,
-    pub row_span: Option<Integer>,
-    pub setsize: Option<Integer>
-}
+MakeAriaAttributeList(
+    RelationshipAttributes,
+    (active_descendant, "aria-activedescendant"): String,
+    (col_count, "aria-colcount"): usize,
+    (col_index, "aria-colindex"): usize,
+    (col_span, "aria-colspan"): usize,
+    //pub controls: Option<String>, //Global
+    //pub described_by: Option<SpaceSeperatedList>, //Global
+    //pub details: Option<String>, //Global
+    //pub error_messsage: Option<String>,
+    (flow_to, "aria-flowto"): SpaceSeperatedList,
+    (labelled_by, "aria-labelledby"): String,
+    //pub owns: Option<SpaceSeperatedList>, //Global
+    (pos_inset, "aria-posinset"): usize,
+    (row_count, "aria-rowcount"): usize,
+    (row_index, "aria-rowindex"): usize,
+    (row_span, "aria-rowspan"): usize,
+    (set_size, "aria-setsize"): usize
+);
 
-pub struct GlobalAttributes {
-    pub atomic: Option<Enumerable>,
-    pub busy: Option<Enumerable>,
-    pub controls: Option<String>,
-    pub current: Option<Current>,
-    pub described_by: Option<SpaceSeperatedList>,
-    pub description: Option<String>,
-    pub details: Option<String>,
-    pub disabled: Option<Enumerable>,
-    pub drop_effect: Option<DropEffect>,
-    pub error_message: Option<String>,
-    pub flow_to: Option<SpaceSeperatedList>,
-    pub grabbed: Option<Enumerable>,
-    pub has_popup: Option<PopUp>,
-    pub hidden: Option<Enumerable>,
-    pub invalid: Option<Enumerable>,
-    pub key_shortcut: Option<String>,
-    pub label: Option<String>,
-    pub labeled_by: Option<SpaceSeperatedList>,
-    pub live: Option<Live>,
-    pub owns: Option<SpaceSeperatedList>,
-    pub relevant: Option<Relevant>,
-    pub role_description: Option<String>
-}
+

@@ -1,131 +1,99 @@
+
 mod aria;
-mod types;
+pub mod types;
+pub use types::*;
 
-trait Attribute {
-    fn generate(&self, name:&str) -> String;
+pub(crate) fn format_string(key: &str, value: &impl ToString) -> String {
+    let value = value.to_string();
+
+    let mut output = String::with_capacity(key.len() + value.len() + 3);
+
+    output.push_str(key);
+    output.push_str("=\"");
+    output.push_str(value.as_str());
+    output.push('"');
+
+    output
 }
 
-impl Attribute for String {
-    fn generate(&self, name:&str) -> String {
-        let mut output = String::with_capacity(self.len() + name.len() + 3);
-        
-        output.push_str(name);
-        output.push_str("=\"");
-        output.push_str(&self);
-        output.push('"');
-
-        output
-    }
-}
-
-macro_rules! AttributeEnum {
+macro_rules! MakeAttributeList {
     (
-        $enum_name:ident,
-        Boolean
+        GlobalAttributes:
+        $list_name: ident
+        $( ,($key_ident: ident, $key_literal:literal): $type:ty )*
     ) => {
-        AttributeEnum!(
-            $enum_name,
-            (True, "true"),
-            (False, "false")
+        $crate::attributes::MakeAttributeList!(
+            $list_name,
+            (access_key, "accesskey"): String,
+            (auto_capitalize, "autocapitalize"): AutoCapitalize,
+            (auto_focus, "autofocus"): bool,
+            (class, "class"): SpaceSeperatedList,
+            (content_editable, "contenteditable"): ContentEditable,
+            (text_direction, "dir"): TextDirection,
+            (draggable, "draggable"): Enumerable,
+            (enter_keyhint, "enterkeyhint"): KeyHint,
+            (export_parts, "exportparts"): SpaceSeperatedList,
+            (hidden, "hidden"): Hidden,
+            (id, "id"): String,
+            (insert, "inert"): bool,
+            (input_mode, "inputmode"): InputMode,
+            //(Is: "is"),
+            (item_id, "itemid"): String,
+            (item_prop, "itemprop"): String,
+            (item_ref, "itemref"): String,
+            (item_scope, "itemscope"): String,
+            (item_type, "itemtype"): String,
+            (language, "lang"): String,
+            (nonce, "nonce"): String,
+            (part, "part"): SpaceSeperatedList,
+            (popover, "popover"): bool,
+            (role, "role"): Role,
+            (slot, "slot"): String,
+            (spell_check, "spellcheck"): bool,
+            (style, "style"): String, /*TODO: Seperate Styling */
+            (tab_index, "tabindex"): usize,
+            (title, "title"): String,
+            (translate, "translate"): types::Translate
+            $(, ($key_ident, $key_literal): $type:ty )*
         );
-
-        impl From<bool> for $enum_name {
-            fn from(value: bool) -> Self {
-                if value {
-                    Self::True
-                } else {
-                    Self::False
-                }
-            }
-        }
     };
     (
-        $enum_name:ident,
-        $( $default:ident, )?
-        $( ($name:ident, $value:literal), )*
-        Boolean
+        $list_name:ident,
+        $( ($key_ident: ident, $key_literal:literal): $type:ty ),+
     ) => {
-        AttributeEnum!(
-            $enum_name, $($default,)?
-            $( ($name, $value), )*
-            (True, "true"),
-            (False, "false")
-        );
+        use $crate::attributes::*;
 
-        impl From<bool> for $enum_name {
-            fn from(value: bool) -> Self {
-                if value {
-                    Self::True
-                } else {
-                    Self::False
-                }
-            }
-        }
-    };
-    (
-        $enum_name:ident,
-        $( $default:ident, )?
-        $( ($name:ident, $value:literal) ),*
-    ) => {
-        pub enum $enum_name {
-            $( $name ),+
+        pub struct $list_name {
+            $($key_ident: Option<$type>), +
         }
 
-        impl $enum_name {
-            pub fn as_str(&self) -> &'static str {
-                match self {
-                    $(Self::$name => $value),*
+        impl $list_name {
+            pub fn new() -> Self {
+                Self{
+                    $($key_ident: None), +
                 }
             }
         }
 
-        impl crate::attributes::Attribute for $enum_name {
-            fn generate(&self, name:&str) -> String {
-                let value = self.as_str();
-                let mut output = String::with_capacity(value.len() + name.len() + 3);
+        impl ToString for $list_name {
+            fn to_string(&self) -> String {
+                let count:usize = ${count($key_ident)};
+                let mut output:String = String::with_capacity(count * 24); //Just a guess 24 = [char; 10] '=' '"' [char; 10] '"' ' '
 
-                output.push_str(name);
-                output.push_str("=\"");
-                output.push_str(value);
-                output.push('"');
+                $(
+                    if self.$key_ident.is_some() {
+                        output.push_str(&format_string($key_literal, self.$key_ident.as_ref().unwrap()));
+                        output.push(' ');
+                    }
+                )+
 
                 output
             }
         }
-
-        impl ToString for $enum_name {
-            fn to_string(&self) -> String {
-                self.as_str().to_string()
-            }
-        }
-
-        impl TryFrom<&str> for $enum_name {
-            type Error = String;
-
-            fn try_from(value:&str) -> Result<Self, String> {
-                match value.to_ascii_lowercase().as_str() {
-                    $( $value => Ok(Self::$name), )*
-                    _ => Err(format!("{} is not {}!", value, stringify!($enum_name)))
-                }
-            }
-        }
-
-        impl TryFrom<String> for $enum_name {
-            type Error = String;
-
-            fn try_from(value: String) -> Result<Self, String> {
-                TryInto::<Self>::try_into(value.as_str())
-            }
-        }
-
-        $(
-            impl Default for $enum_name {
-                fn default() -> Self {
-                    Self::$default
-                }
-            }
-        )?
+    };
+    ($name: ident) => {
+        $crate::attributes::MakeAttributeList!(GlobalAttributes: $name);
     };
 }
 
-pub(crate) use AttributeEnum;
+pub(crate) use MakeAttributeList;
