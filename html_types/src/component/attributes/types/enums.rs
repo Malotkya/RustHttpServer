@@ -1,6 +1,11 @@
 use super::AttributeEnum;
 
 AttributeEnum!(
+    Enumerable,
+    Boolean
+);
+
+AttributeEnum!(
     RefferPolicy,
     (No, "no-referrer"),
     (NoWhenDowngrade, "no_referrer-when-downgrade"),
@@ -120,3 +125,24 @@ impl From<bool> for Translate {
         }
     }
 }
+
+AttributeEnum!(
+    AnchorRelation,
+    (Alternamte, "alternate"),
+    (Author, "author"),
+    (Bookmark, "bookmark"),
+    (External, "eternal"),
+    (Help, "help"),
+    (Liscense, "liscense"),
+    (Me, "me"),
+    (Next, "next"),
+    (NoFollow, "nofollow"),
+    (NoOpener, "noopener"),
+    (NoReferrer, "norefferer"),
+    (Opener, "opener"),
+    (Prev, "prev"),
+    (PrivacyPolicy, "privacy-policy"),
+    (Search, "search"),
+    (Tag, "tag"),
+    (TermsOfService, "terms-of-service")
+);

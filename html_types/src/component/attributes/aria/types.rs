@@ -1,4 +1,4 @@
-use super::super::AttributeEnum;
+use crate::component::attributes::AttributeEnum;
 
 AttributeEnum!(
     AutoComplete,

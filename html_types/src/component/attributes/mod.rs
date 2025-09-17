@@ -1,22 +1,55 @@
 
-mod aria;
+pub mod aria;
+pub mod name;
+pub use name::*;
 pub mod types;
 pub use types::*;
+pub mod value;
+pub use value::*;
 
-pub(crate) fn format_string(key: &str, value: &impl ToString) -> String {
-    let value = value.to_string();
+struct AttributeItem(Box<dyn AttributeName>, AttributeValue);
 
-    let mut output = String::with_capacity(key.len() + value.len() + 3);
+impl AttributeItem {
+    pub fn key(&self) -> &str {
+        self.0.value()
+    }
 
-    output.push_str(key);
-    output.push_str("=\"");
-    output.push_str(value.as_str());
-    output.push('"');
+    pub fn value(&self) -> &AttributeValue {
+        &self.1
+    }
 
-    output
+    pub fn set_value<T: ToString>(&mut self, value:T) {
+        self.1 = AttributeValue::String(value.to_string())
+    }
+
+    pub fn toggle_value(&mut self, value:bool) {
+        self.1 = AttributeValue::Boolean(value)
+    }
 }
 
-macro_rules! MakeAttributeList {
+impl ToString for AttributeItem {
+    fn to_string(&self) -> String {
+        match &self.1 {
+            AttributeValue::Boolean(b) => if *b {
+                self.0.value().to_owned()
+            } else {
+                String::new()
+            },
+            AttributeValue::String(value) => {
+                let key = self.0.value();
+
+                let mut output = String::with_capacity(key.len() + value.len() + 3);
+                output.push_str(key);
+                output.push_str("=\"");
+                output.push_str(value);
+                output.push('"');
+                output
+            }
+        }
+    }
+}
+
+macro_rules! AddAttributes {
     (
         GlobalAttributes:
         $list_name: ident
@@ -27,15 +60,16 @@ macro_rules! MakeAttributeList {
             (access_key, "accesskey"): String,
             (auto_capitalize, "autocapitalize"): AutoCapitalize,
             (auto_focus, "autofocus"): bool,
+            //(auto_correct, "autocorrect") Javascript?
             (class, "class"): SpaceSeperatedList,
             (content_editable, "contenteditable"): ContentEditable,
             (text_direction, "dir"): TextDirection,
             (draggable, "draggable"): Enumerable,
-            (enter_keyhint, "enterkeyhint"): KeyHint,
+            (enter_key_hint, "enterkeyhint"): KeyHint,
             (export_parts, "exportparts"): SpaceSeperatedList,
             (hidden, "hidden"): Hidden,
             (id, "id"): String,
-            (insert, "inert"): bool,
+            (inert, "inert"): bool,
             (input_mode, "inputmode"): InputMode,
             //(Is: "is"),
             (item_id, "itemid"): String,
@@ -53,7 +87,8 @@ macro_rules! MakeAttributeList {
             (style, "style"): String, /*TODO: Seperate Styling */
             (tab_index, "tabindex"): usize,
             (title, "title"): String,
-            (translate, "translate"): types::Translate
+            (translate, "translate"): types::Translate,
+            (writing_suggestions, "writingsuggestions"): bool
             $(, ($key_ident, $key_literal): $type:ty )*
         );
     };
@@ -61,7 +96,7 @@ macro_rules! MakeAttributeList {
         $list_name:ident,
         $( ($key_ident: ident, $key_literal:literal): $type:ty ),+
     ) => {
-        use $crate::attributes::*;
+        use $crate::component::attributes::*;
 
         pub struct $list_name {
             $($key_ident: Option<$type>), +
@@ -92,8 +127,8 @@ macro_rules! MakeAttributeList {
         }
     };
     ($name: ident) => {
-        $crate::attributes::MakeAttributeList!(GlobalAttributes: $name);
+        $crate::attributes::AddAttributes!(GlobalAttributes: $name);
     };
 }
 
-pub(crate) use MakeAttributeList;
+pub(crate) use AddAttributes;
