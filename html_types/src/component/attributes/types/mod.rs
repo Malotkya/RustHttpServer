@@ -1,13 +1,15 @@
 use std::{
-    collections::{HashSet, HashMap},
+    collections::HashSet,
     ops::{Deref, DerefMut},
     str::FromStr
 };
+use crate::component::attributes::{FromAttribteValue, AttributeValue, ToAttributeValue};
+pub use super::aria::types::*;
 
 mod enums;
 pub use enums::*;
 mod macros;
-pub use macros::*;
+pub(crate) use macros::*;
 
 pub enum Value {
     String(String),
@@ -58,6 +60,25 @@ impl ToString for Value {
     }
 }
 
+impl ToAttributeValue for Value {
+    fn into_value(&self) -> AttributeValue {
+        AttributeValue::String(self.to_string())
+    }
+}
+
+impl FromAttribteValue for Value {
+    fn parse_from(value:&AttributeValue) -> Self {
+        match value {
+            AttributeValue::String(s) => Self::String(s.to_owned()),
+            AttributeValue::Boolean(b) => if *b {
+                Self::Number(1.0)
+            } else {
+                Self::Number(0.0)
+            }
+        }
+    }
+}
+
 pub struct SpaceSeperatedList(HashSet<String>);
 
 impl Deref for SpaceSeperatedList {
@@ -98,10 +119,19 @@ impl ToString for SpaceSeperatedList {
     }
 }
 
-pub enum BoolOrString {
-    Boolean(bool),
-    String(String)
+impl ToAttributeValue for SpaceSeperatedList {
+    fn into_value(&self) -> AttributeValue {
+        AttributeValue::String(self.to_string())
+    }
 }
+
+impl FromAttribteValue for SpaceSeperatedList {
+    fn parse_from(value:&AttributeValue) -> Self {
+        value.as_str().into()
+    }
+}
+
+pub type BoolOrString = AttributeValue;
 
 impl From<String> for BoolOrString {
     fn from(value: String) -> Self {
