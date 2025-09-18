@@ -1,5 +1,6 @@
 
 pub mod aria;
+pub(crate) use aria::MakeAriaAttributes;
 pub mod name;
 pub use name::*;
 pub mod types;
@@ -7,7 +8,7 @@ pub use types::*;
 pub mod value;
 pub use value::*;
 
-struct AttributeItem(Box<dyn AttributeName>, AttributeValue);
+pub(crate) struct AttributeItem(AttributeName, AttributeValue);
 
 impl AttributeItem {
     pub fn key(&self) -> &str {
@@ -18,8 +19,10 @@ impl AttributeItem {
         &self.1
     }
 
-    pub fn set_value<T: ToString>(&mut self, value:T) {
-        self.1 = AttributeValue::String(value.to_string())
+    pub fn set_value<T: ToAttributeValue>(&mut self, value:T) -> AttributeValue {
+        let old_value = self.1.clone();
+        self.1 = value.into_value();
+        old_value
     }
 
     pub fn toggle_value(&mut self, value:bool) {
@@ -50,84 +53,110 @@ impl ToString for AttributeItem {
 }
 
 macro_rules! AddAttributes {
-    (
-        GlobalAttributes:
-        $list_name: ident
-        $( ,($key_ident: ident, $key_literal:literal): $type:ty )*
-    ) => {
-        $crate::attributes::MakeAttributeList!(
-            $list_name,
-            (access_key, "accesskey"): String,
-            (auto_capitalize, "autocapitalize"): AutoCapitalize,
-            (auto_focus, "autofocus"): bool,
-            //(auto_correct, "autocorrect") Javascript?
-            (class, "class"): SpaceSeperatedList,
-            (content_editable, "contenteditable"): ContentEditable,
-            (text_direction, "dir"): TextDirection,
-            (draggable, "draggable"): Enumerable,
-            (enter_key_hint, "enterkeyhint"): KeyHint,
-            (export_parts, "exportparts"): SpaceSeperatedList,
-            (hidden, "hidden"): Hidden,
-            (id, "id"): String,
-            (inert, "inert"): bool,
-            (input_mode, "inputmode"): InputMode,
-            //(Is: "is"),
-            (item_id, "itemid"): String,
-            (item_prop, "itemprop"): String,
-            (item_ref, "itemref"): String,
-            (item_scope, "itemscope"): String,
-            (item_type, "itemtype"): String,
-            (language, "lang"): String,
-            (nonce, "nonce"): String,
-            (part, "part"): SpaceSeperatedList,
-            (popover, "popover"): bool,
-            (role, "role"): Role,
-            (slot, "slot"): String,
-            (spell_check, "spellcheck"): bool,
-            (style, "style"): String, /*TODO: Seperate Styling */
-            (tab_index, "tabindex"): usize,
-            (title, "title"): String,
-            (translate, "translate"): types::Translate,
-            (writing_suggestions, "writingsuggestions"): bool
-            $(, ($key_ident, $key_literal): $type:ty )*
+    () => {
+        $crate::component::attributes::AddAttributes!(
+            AriaAttributes(GlobalAttributes);
+            GlobalAttributes;
         );
     };
     (
-        $list_name:ident,
-        $( ($key_ident: ident, $key_literal:literal): $type:ty ),+
+        $( AriaAttributes($( $aria_name:ident ),+); )?
+        GlobalAttributes;
+        $( $func_name:ident: ($key: literal, $value:ty) ),*
     ) => {
-        use $crate::component::attributes::*;
+        $(
+            $crate::component::attributes::MakeAriaAttributes!($($aria_name),+);
+        )?
+        //$crate::component::attributes::AddAttributes!(
+        html_macros::attribute_functions!(
+            $( $func_name: ($key, $value), )*
+            access_key: ("accesskey", String),
+            auto_capitalize: ("autocapitalize", AutoCapitalize),
+            auto_focus: ("autofocus", bool),
+            //(auto_correct, "autocorrect") Javascript?
+            class: ("class", SpaceSeperatedList),
+            content_editable: ("contenteditable", ContentEditable),
+            text_direction: ("dir", TextDirection),
+            draggable: ("draggable", Enumerable),
+            enter_key_hint: ("enterkeyhint", KeyHint),
+            export_parts: ("exportparts", SpaceSeperatedList),
+            hidden: ("hidden", Hidden),
+            id: ("id", String),
+            inert: ("inert", bool),
+            input_mode: ("inputmode", InputMode),
+            //(Is: "is"),
+            item_id: ("itemid", String),
+            item_prop: ("itemprop", String),
+            item_ref: ("itemref", String),
+            item_scope: ("itemscope", String),
+            item_type: ("itemtype", String),
+            language: ("lang", String),
+            nonce: ("nonce", String),
+            part: ("part", SpaceSeperatedList),
+            popover: ("popover", bool),
+            role: ("role", Role),
+            slot: ("slot", String),
+            spell_check: ("spellcheck", bool),
+            style: ("style", String), /*TODO: Seperate Styling */
+            tab_index: ("tabindex", String/*usize*/),
+            title: ("title", String),
+            translate: ("translate", Translate),
+            writing_suggestions: ("writingsuggestions", bool)
+        );
+    };
+    (
+        $( $func_name:ident: ($key: literal, $value:ty) ),+
+    ) => {
 
-        pub struct $list_name {
-            $($key_ident: Option<$type>), +
-        }
+        html_macros::attribute_functions!(
+            $( $func_name: ($key, $value) ),+
+        );
 
-        impl $list_name {
-            pub fn new() -> Self {
-                Self{
-                    $($key_ident: None), +
+        pub fn set_attribute<T:$crate::component::attributes::ToAttributeValue>(&mut self, name:&str, value:T) -> Option<$crate::component::AttributeValue> {
+            let mut interanl = self.0.borrow_mut();
+            
+            for att in &mut interanl.attributes {
+                if att.key() ==  name {
+                    return Some(
+                        att.set_value(value)
+                    )
                 }
             }
+
+            None
         }
 
-        impl ToString for $list_name {
-            fn to_string(&self) -> String {
-                let count:usize = ${count($key_ident)};
-                let mut output:String = String::with_capacity(count * 24); //Just a guess 24 = [char; 10] '=' '"' [char; 10] '"' ' '
+        pub fn toggle_attribute(&mut self, name:&str, value:Option<bool>) -> Option<$crate::component::AttributeValue> {
+            let value = !value.unwrap_or(
+                self.get_attribute(name)
+                    .map(|v|v.is_truthy())
+                    .unwrap_or(false)
+            );
 
-                $(
-                    if self.$key_ident.is_some() {
-                        output.push_str(&format_string($key_literal, self.$key_ident.as_ref().unwrap()));
-                        output.push(' ');
-                    }
-                )+
-
-                output
+            let mut interanl = self.0.borrow_mut();
+            for att in &mut interanl.attributes {
+                if att.key() ==  name {
+                    let old_value = att.value().clone();
+                    att.toggle_value(value);
+                    return Some(
+                        old_value
+                    )
+                }
             }
+
+            None
         }
-    };
-    ($name: ident) => {
-        $crate::attributes::AddAttributes!(GlobalAttributes: $name);
+
+        pub fn get_attribute(&self, name:&str) -> Option<$crate::component::AttributeValue> {
+            let interanl = self.0.borrow();
+            for att in &interanl.attributes {
+                if att.key() == name {
+                    return Some(att.value().clone())
+                }
+            }
+
+            None
+        }
     };
 }
 
