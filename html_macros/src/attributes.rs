@@ -1,8 +1,9 @@
 use syn::parse::{Parse, ParseStream};
 
+
 pub(crate) struct AttributeProps {
     function_name: syn::Ident,
-    literal: syn::LitStr,
+    internal: syn::LitStr,
     return_type: syn::Type
 }
 
@@ -21,13 +22,17 @@ impl Parse for AttributePropsList {
             let next;
             syn::parenthesized!(next in input);
 
-            let literal = next.parse::<syn::LitStr>()?;
+            let internal = next.parse::<syn::LitStr>()?;
             next.parse::<syn::Token![,]>()?;
 
             let return_type = next.parse::<syn::Type>()?;
 
+            while !next.is_empty() {
+                let _ = next.parse::<syn::Ident>();
+            }
+
             vec.push(AttributeProps { 
-                function_name, literal, return_type
+                function_name, internal, return_type
             });
 
             if !input.is_empty() {
@@ -35,11 +40,7 @@ impl Parse for AttributePropsList {
             }
         }
 
-        if input.is_empty() {
-            Ok(Self(vec))
-        } else {
-            Err(input.error(format!("{:?}", input)))
-        }
+        Ok(Self(vec))
     }
 }
 
@@ -60,7 +61,7 @@ fn is_boolean(value: &syn::Type) -> bool {
 }
 
 fn build_boolean_getter_setter(value: AttributeProps) -> proc_macro2::TokenStream {
-    let AttributeProps{function_name, literal, ..} = value;
+    let AttributeProps{function_name, internal, ..} = value;
     
     let getter_name = syn::Ident::new(
         &format!("get_{}", function_name.to_string()),
@@ -79,19 +80,20 @@ fn build_boolean_getter_setter(value: AttributeProps) -> proc_macro2::TokenStrea
                     .unwrap_or(false)
             );
 
-            let mut interanl = self.0.borrow_mut();
-            for att in &mut interanl.attributes {
-                if att.key() ==  #literal {
+            let mut internal = self.0.borrow_mut();
+            for att in &mut internal.attributes {
+                if att.key() ==  #internal {
                     att.toggle_value(value);
                     return;
                 }
             }
+            
         }
 
         pub fn #getter_name(&self) -> Option<bool> {
-            let interanl = self.0.borrow();
-            for att in & interanl.attributes {
-                if att.key() == #literal {
+            let internal = self.0.borrow_mut();
+            for att in & internal.attributes {
+                if att.key() == #internal {
                     return Some(
                         att.value().parse()
                     )
@@ -104,7 +106,7 @@ fn build_boolean_getter_setter(value: AttributeProps) -> proc_macro2::TokenStrea
 }
 
 fn build_getter_setter(value: AttributeProps) -> proc_macro2::TokenStream {
-    let AttributeProps{function_name, literal, return_type} = value;
+    let AttributeProps{function_name, internal, return_type} = value;
     
     let getter_name = syn::Ident::new(
         &format!("get_{}", function_name.to_string()),
@@ -118,9 +120,9 @@ fn build_getter_setter(value: AttributeProps) -> proc_macro2::TokenStream {
 
     quote::quote! {
         pub fn #setter_name(&self, value:#return_type) -> Option<#return_type>{
-            let mut interanl = self.0.borrow_mut();
-            for att in &mut interanl.attributes {
-                if att.key() ==  #literal {
+            let mut internal = self.0.borrow_mut();
+            for att in &mut internal.attributes {
+                if att.key() ==  #internal {
                     return Some(
                         att.set_value(value).parse()
                     )
@@ -131,9 +133,10 @@ fn build_getter_setter(value: AttributeProps) -> proc_macro2::TokenStream {
         }
 
         pub fn #getter_name(&self) -> Option<bool> {
-            let interanl = self.0.borrow_mut();
-            for att in & interanl.attributes {
-                if att.key() == #literal {
+            let internal = self.0.borrow_mut();
+
+            for att in & internal.attributes {
+                if att.key() == #internal {
                     return Some(
                         att.value().parse()
                     )
