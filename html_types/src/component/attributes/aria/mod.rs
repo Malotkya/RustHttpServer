@@ -1,32 +1,43 @@
 pub(crate) mod types;
 
 macro_rules! MakeAriaAttributes {
-    () => {
-        $crate::component::attributes::aria::MakeAriaAttributes!(GlobalAttributes);
-    };
     (GlobalAttributes) => {
         html_macros::attribute_functions!(
-            aria_atomic: ("aria-atomic", Enumerable),
-            aria_busy: ("aria-busy", Enumerable),
+            aria_atomic: ("aria-atomic",
+               $crate::component::attributes::types::Enumerable),
+            aria_busy: ("aria-busy", 
+               $crate::component::attributes::types::Enumerable),
             aria_controls: ("aria-controls", String),
-            aria_current: ("aria-current", Current),
-            aria_described_by: ("aria-descripbedby", SpaceSeperatedList),
+            aria_current: ("aria-current", 
+               $crate::component::attributes::types::Current),
+            aria_described_by: ("aria-descripbedby", 
+               $crate::component::attributes::types::SpaceSeperatedList),
             aria_description: ("aria-description", String),
             aria_details: ("aria-details", String),
             aria_disabled: ("aria-disabled", String),
-            aria_drop_effect: ("aria-dropeffect", DropEffect),
+            aria_drop_effect: ("aria-dropeffect", 
+               $crate::component::attributes::types::DropEffect),
             aria_error_message: ("aria-errormessage", String),
-            aria_flow_to: ("aria-flowto", SpaceSeperatedList),
-            aria_grabbed: ("aria-grabbed", Enumerable),
-            aria_has_popup: ("aria-haspopup", PopUp),
-            aria_hidden: ("aria-hidden", Enumerable),
-            aria_invalid: ("aria-invalid", Enumerable),
+            aria_flow_to: ("aria-flowto", 
+               $crate::component::attributes::types::SpaceSeperatedList),
+            aria_grabbed: ("aria-grabbed", 
+               $crate::component::attributes::types::Enumerable),
+            aria_has_popup: ("aria-haspopup", 
+               $crate::component::attributes::types::PopUp),
+            aria_hidden: ("aria-hidden", 
+               $crate::component::attributes::types::Enumerable),
+            aria_invalid: ("aria-invalid", 
+               $crate::component::attributes::types::Enumerable),
             aria_key_shortcut: ("aria-keyshortcut", String),
             aria_label: ("aria-label", String),
-            aria_labeled_by: ("aria-labedby", SpaceSeperatedList),
-            aria_live: ("aria-live", Live),
-            aria_owns: ("aria-owns", SpaceSeperatedList),
-            aria_relevant: ("aria-relevant", Relevant),
+            aria_labeled_by: ("aria-labedby", 
+               $crate::component::attributes::types::SpaceSeperatedList),
+            aria_live: ("aria-live", 
+               $crate::component::attributes::types::Live),
+            aria_owns: ("aria-owns", 
+               $crate::component::attributes::types::SpaceSeperatedList),
+            aria_relevant: ("aria-relevant", 
+               $crate::component::attributes::types::Relevant),
             aria_role_description: ("aria-roledescription", String)
         );
     };
@@ -79,11 +90,6 @@ macro_rules! MakeAriaAttributes {
             aria_row_span: ("aria-rowspan", usize),
             aria_set_size: ("aria-setsize", usize)
         );
-    };
-    ($($name:ident),+ ) => {
-        $(
-            $crate::component::attributes::aria::MakeAriaAttributes!($name);
-        )+
     };
 }
 
