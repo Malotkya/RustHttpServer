@@ -1,6 +1,5 @@
 
 pub mod aria;
-pub(crate) use aria::MakeAriaAttributes;
 pub mod name;
 pub use name::*;
 pub mod types;
@@ -8,6 +7,7 @@ pub use types::*;
 pub mod value;
 pub use value::*;
 
+#[derive(Clone, PartialEq)]
 pub(crate) struct AttributeItem(AttributeName, AttributeValue);
 
 impl AttributeItem {
@@ -52,38 +52,32 @@ impl ToString for AttributeItem {
     }
 }
 
-macro_rules! AddAttributes {
-    () => {
-        $crate::component::attributes::AddAttributes!(
-            AriaAttributes(GlobalAttributes);
-            GlobalAttributes;
-        );
-    };
-    (
-        $( AriaAttributes($( $aria_name:ident ),+); )?
-        GlobalAttributes;
-        $( $func_name:ident: ($key: literal, $value:ty) ),*
-    ) => {
-        $(
-            $crate::component::attributes::MakeAriaAttributes!($($aria_name),+);
-        )?
-        //$crate::component::attributes::AddAttributes!(
+macro_rules! MakeAttributes {
+    (GlobalAttributes) => {
         html_macros::attribute_functions!(
-            $( $func_name: ($key, $value), )*
             access_key: ("accesskey", String),
-            auto_capitalize: ("autocapitalize", AutoCapitalize),
+            auto_capitalize: ("autocapitalize", 
+                $crate::component::attributes::types::AutoCapitalize),
             auto_focus: ("autofocus", bool),
             //(auto_correct, "autocorrect") Javascript?
-            class: ("class", SpaceSeperatedList),
-            content_editable: ("contenteditable", ContentEditable),
-            text_direction: ("dir", TextDirection),
-            draggable: ("draggable", Enumerable),
-            enter_key_hint: ("enterkeyhint", KeyHint),
-            export_parts: ("exportparts", SpaceSeperatedList),
-            hidden: ("hidden", Hidden),
+            class: ("class",  
+                $crate::component::attributes::types::SpaceSeperatedList),
+            content_editable: ("contenteditable",  
+                $crate::component::attributes::types::ContentEditable),
+            text_direction: ("dir",  
+                $crate::component::attributes::types::TextDirection),
+            draggable: ("draggable",  
+                $crate::component::attributes::types::Enumerable),
+            enter_key_hint: ("enterkeyhint",  
+                $crate::component::attributes::types::KeyHint),
+            export_parts: ("exportparts",  
+                $crate::component::attributes::types::SpaceSeperatedList),
+            hidden: ("hidden",  
+                $crate::component::attributes::types::Hidden),
             id: ("id", String),
             inert: ("inert", bool),
-            input_mode: ("inputmode", InputMode),
+            input_mode: ("inputmode",  
+                $crate::component::attributes::types::InputMode),
             //(Is: "is"),
             item_id: ("itemid", String),
             item_prop: ("itemprop", String),
@@ -92,15 +86,18 @@ macro_rules! AddAttributes {
             item_type: ("itemtype", String),
             language: ("lang", String),
             nonce: ("nonce", String),
-            part: ("part", SpaceSeperatedList),
+            part: ("part",  
+                $crate::component::attributes::types::SpaceSeperatedList),
             popover: ("popover", bool),
-            role: ("role", Role),
+            role: ("role",  
+                $crate::component::attributes::types::Role),
             slot: ("slot", String),
             spell_check: ("spellcheck", bool),
             style: ("style", String), /*TODO: Seperate Styling */
             tab_index: ("tabindex", String/*usize*/),
             title: ("title", String),
-            translate: ("translate", Translate),
+            translate: ("translate",  
+                $crate::component::attributes::types::Translate),
             writing_suggestions: ("writingsuggestions", bool)
         );
     };
@@ -111,53 +108,7 @@ macro_rules! AddAttributes {
         html_macros::attribute_functions!(
             $( $func_name: ($key, $value) ),+
         );
-
-        pub fn set_attribute<T:$crate::component::attributes::ToAttributeValue>(&mut self, name:&str, value:T) -> Option<$crate::component::AttributeValue> {
-            let mut interanl = self.0.borrow_mut();
-            
-            for att in &mut interanl.attributes {
-                if att.key() ==  name {
-                    return Some(
-                        att.set_value(value)
-                    )
-                }
-            }
-
-            None
-        }
-
-        pub fn toggle_attribute(&mut self, name:&str, value:Option<bool>) -> Option<$crate::component::AttributeValue> {
-            let value = !value.unwrap_or(
-                self.get_attribute(name)
-                    .map(|v|v.is_truthy())
-                    .unwrap_or(false)
-            );
-
-            let mut interanl = self.0.borrow_mut();
-            for att in &mut interanl.attributes {
-                if att.key() ==  name {
-                    let old_value = att.value().clone();
-                    att.toggle_value(value);
-                    return Some(
-                        old_value
-                    )
-                }
-            }
-
-            None
-        }
-
-        pub fn get_attribute(&self, name:&str) -> Option<$crate::component::AttributeValue> {
-            let interanl = self.0.borrow();
-            for att in &interanl.attributes {
-                if att.key() == name {
-                    return Some(att.value().clone())
-                }
-            }
-
-            None
-        }
     };
 }
 
-pub(crate) use AddAttributes;
+pub(crate) use MakeAttributes;
