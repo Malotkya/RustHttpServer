@@ -6,7 +6,7 @@ use std::{
 };
 pub use super::aria::types::*;
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 pub enum AttributeValue {
     String(String),
     Boolean(bool)

@@ -1,6 +1,8 @@
+
+#[derive(PartialEq)]
 pub enum AttributeName {
     Static(&'static str),
-     Alloc(String)
+    Alloc(String)
 }
 
 impl AttributeName {
@@ -8,6 +10,15 @@ impl AttributeName {
         match self {
             Self::Static(s) => s,
             Self::Alloc(s) => s
+        }
+    }
+}
+
+impl Clone for AttributeName {
+    fn clone(&self) -> Self {
+        match self {
+            Self::Static(s) => Self::Static(*s),
+            Self::Alloc(s) => Self::Alloc(s.clone())
         }
     }
 }
