@@ -1,8 +1,4 @@
-use std::{
-    collections::HashSet,
-    ops::{Deref, DerefMut},
-    str::FromStr
-};
+use std::str::FromStr;
 use crate::component::attributes::{FromAttribteValue, AttributeValue, ToAttributeValue};
 pub use super::aria::types::*;
 
@@ -70,6 +66,7 @@ impl FromAttribteValue for Value {
     fn parse_from(value:&AttributeValue) -> Self {
         match value {
             AttributeValue::String(s) => Self::String(s.to_owned()),
+            AttributeValue::ClassList(list) => Self::String(list.to_string()),
             AttributeValue::Boolean(b) => if *b {
                 Self::Number(1.0)
             } else {
@@ -79,18 +76,95 @@ impl FromAttribteValue for Value {
     }
 }
 
-pub struct SpaceSeperatedList(HashSet<String>);
+#[derive(Clone, PartialEq)]
+pub struct SpaceSeperatedList(String);
 
-impl Deref for SpaceSeperatedList {
-    type Target = HashSet<String>;
+impl SpaceSeperatedList {
+    pub fn new() -> Self {
+        Self(String::new())
+    }
 
-    fn deref(&self) -> &Self::Target {
+    pub fn with_capacity(capacity: usize) -> Self {
+        Self(String::with_capacity(capacity * 10))
+    }
+
+    fn find(&self, value:&str, start:usize) -> Option<usize> {
+        if start >= value.len() {
+            None
+        } else if let Some(index) = self.0[start..].find(value) {
+            //Make sure value is not substring of a different value.
+            let mut chars = self.0.chars();
+
+            //Prev doesn't exist or is whitespace
+            let prev = chars.nth(index-1);
+            if prev.is_none() || prev.unwrap().is_whitespace() {
+
+                //Next deosn't exists or is whitespace
+                let next = chars.nth(index+value.len()+1);
+                if next.is_none() || next.unwrap().is_whitespace() {
+                    return Some(index)
+                }
+
+            }
+
+            self.find(value, index)
+        } else {
+            None
+        }
+    }
+
+    pub fn has(&self, value:&str) -> bool {
+        self.find(value, 0).is_some()
+    }
+
+    pub fn add(&mut self, value:&str) -> bool {
+        if self.find(value, 0).is_none() {
+            self.0.push(' ');
+            self.0.push_str(value);
+            true
+        } else {
+            false
+        }
+    }
+
+    pub fn remove(&mut self, value:&str) -> bool {
+        if let Some(index) = self.find(value, 0) {
+            self.0.replace_range(index..index+value.len(), "");
+            true
+        } else {
+            false
+        }
+    }
+
+    pub fn toggle(&mut self, value:&str) -> bool {
+        if let Some(index) = self.find(value, 0) {
+            self.0.replace_range(index..index+value.len(), "");
+            false
+        } else {
+            self.0.push(' ');
+            self.0.push_str(value);
+            true
+        }
+    }
+
+    pub fn replace(&mut self, old_value:&str, new_value:&str) -> bool {
+        if let Some(index) = self.find(old_value, 0) {
+            self.0.replace_range(index..index+old_value.len(), new_value);
+            true
+        } else {
+            false
+        }
+    }
+
+    pub fn len(&self) -> usize {
+        self.0.split_whitespace().count()
+    }
+
+    pub fn as_str(&self) -> &str {
         &self.0
     }
-}
 
-impl DerefMut for SpaceSeperatedList {
-    fn deref_mut(&mut self) -> &mut Self::Target {
+    pub(crate) fn inner(&mut self) -> &mut String {
         &mut self.0
     }
 }
@@ -98,9 +172,7 @@ impl DerefMut for SpaceSeperatedList {
 impl From<&str> for SpaceSeperatedList {
     fn from(value: &str) -> Self {
         Self(
-            value.split_whitespace()
-                .map(|s|s.to_string())
-                .collect()
+            value.to_owned()
         )
     }
 }
@@ -113,9 +185,7 @@ impl From<String> for SpaceSeperatedList {
 
 impl ToString for SpaceSeperatedList {
     fn to_string(&self) -> String {
-        self.0.iter().map(|s|s.clone())
-            .collect::<Vec<String>>()
-            .join(" ")
+        self.0.clone()
     }
 }
 
@@ -131,7 +201,10 @@ impl FromAttribteValue for SpaceSeperatedList {
     }
 }
 
-pub type BoolOrString = AttributeValue;
+pub enum BoolOrString {
+    String(String),
+    Boolean(bool)
+}
 
 impl From<String> for BoolOrString {
     fn from(value: String) -> Self {
