@@ -4,11 +4,14 @@ use std::{
     ops::{Deref, DerefMut},
     str::FromStr
 };
+use super::SpaceSeperatedList;
+
 pub use super::aria::types::*;
 
 #[derive(Clone, PartialEq)]
 pub enum AttributeValue {
     String(String),
+    ClassList(SpaceSeperatedList),
     Boolean(bool)
 }
 
@@ -27,7 +30,10 @@ impl FromAttribteValue for AttributeValue {
 impl AttributeValue {
     pub fn as_str(&self) -> &str {
         match self {
-            Self::String(s) => s ,
+            Self::String(s) => s,
+            Self::ClassList(list) => {
+                list.as_str()
+            },
             Self::Boolean(b) => if *b {
                 "true"
             } else {
@@ -39,8 +45,30 @@ impl AttributeValue {
     pub fn is_truthy(&self) -> bool {
         match &self {
             Self::Boolean(b) => *b,
+            Self::ClassList(_) => false,
             Self::String(s) =>
                 s.to_ascii_lowercase().trim() == "true"
+        }
+    }
+
+    pub(crate) fn is_list(&self) -> bool {
+        match self {
+            Self::ClassList(_) => true,
+            _ => false
+        }
+    }
+
+    pub fn list_mut(&mut self) -> Option<&mut SpaceSeperatedList> {
+        match self {
+            Self::ClassList(list) => Some(list),
+            _ => None
+        }
+    }
+
+    pub fn list(&self) -> Option<& SpaceSeperatedList> {
+        match self {
+            Self::ClassList(list) => Some(list),
+            _ => None
         }
     }
 
