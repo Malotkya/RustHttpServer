@@ -4,6 +4,10 @@ macro_rules! DefaultChildrenAccess {
             Ok(&self.children)
         }
 
+        fn children_mut(&mut self) -> Result<&mut LinkedList<Node>, NodeError> {
+            Ok(&mut self.children)
+        }
+
         fn add_child(&mut self, child:Node, index: Option<usize>) -> Result<(), NodeError> {
             if let Some(index) = index {
                 let mut tail = self.children.split_off(index);
@@ -33,6 +37,10 @@ macro_rules! DefaultAttributeAccess {
         fn attributes(&self) -> Option<&Vec<AttributeItem>> {
             Some(&self.attriubutes)
         }
+
+        fn attributes_mut(&mut self) -> Option<&mut Vec<AttributeItem>> {
+            Some(&mut self.attriubutes)
+        }
     };
 }
 
@@ -59,7 +67,65 @@ macro_rules! StaticName {
     };
 }
 
+macro_rules! NodeType {
+    (
+        $node_type:path = $struct_name:ident(
+            $({ $($outer_impl_block:tt)* })?
+            $( $outer_trait_name:ident:{ $($outer_impl_trait_block:tt)* }; )*
+        );
+        $inner_name:ident { $($inner_struct_block:tt)* }:(
+            $( { $($inner_impl_block:tt)* }; )?
+            $( $inner_trait_name:ident:{ $($inner_impl_trait_block:tt)* }; )*
+        )
+        
+    ) => { paste::paste!{
+
+        pub(crate) struct [<$struct_name $inner_name>] {
+            $($inner_struct_block)*
+        }
+
+        $(
+            impl [<$struct_name $inner_name>] {
+                $($inner_impl_block)*
+            }
+        )?
+
+        $(
+            impl $inner_trait_name for [<$struct_name $inner_name>] {
+                $($inner_impl_trait_block)*
+            }
+        )*
+
+        pub struct $struct_name (
+            pub(crate) std::rc::Rc<
+                std::cell::RefCell<
+                    [<$struct_name $inner_name>]
+                >
+            >
+        );
+
+        $(
+            impl $struct_name {
+                $($outer_impl_block)*
+            }
+        )?
+
+        $(
+            impl $outer_trait_name for $struct_name {
+                $($outer_impl_trait_block)*
+            }
+        )*
+
+        impl IntoNode for $struct_name {
+            fn node(&self) -> Node {
+                $node_type(self.0.clone())
+            }
+        }
+    }};
+}
+
 pub(crate) use DefaultChildrenAccess;
 pub(crate) use DefaultParrentAccess;
 pub(crate) use DefaultAttributeAccess;
 pub(crate) use StaticName;
+pub(crate) use NodeType;
