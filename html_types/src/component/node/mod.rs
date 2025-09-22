@@ -16,7 +16,10 @@ pub(crate) use macros::*;
 #[allow(unused_variables)]
 pub trait NodeInternalData {
     fn children(&self) -> Result<&LinkedList<Node>, NodeError> {
-        Result::<&LinkedList<Node>, NodeError>::Err(NodeError::NoChildrenList)
+        Err(NodeError::NoChildrenList)
+    }
+    fn children_mut(&mut self) -> Result<&mut LinkedList<Node>, NodeError> {
+        Err(NodeError::NoChildrenList)
     }
     fn add_child(&mut self, child:Node, index: Option<usize>) -> Result<(), NodeError>{
         Err(NodeError::NoChildrenList)
@@ -29,6 +32,9 @@ pub trait NodeInternalData {
     }
 
     fn attributes(&self) -> Option<&Vec<AttributeItem>> {
+        None
+    }
+    fn attributes_mut(&mut self) -> Option<&mut Vec<AttributeItem>> {
         None
     }
 
@@ -125,6 +131,16 @@ impl Node {
             Self::DocumentType(inner) => inner.as_ptr(),
             Self::Element(inner) => inner.as_ptr(),
             Self::Text(inner) => inner.as_ptr(),
+        }
+    }
+
+    pub(crate) fn is_visual_element(&self) -> bool {
+        match self {
+            Self::Element(_) => true,
+            Self::Text(_) => true,
+            Self::Document(_) => true,
+            Self::DocumentFragment(_) => true,
+            _ => false
         }
     }
 }
@@ -334,7 +350,7 @@ impl Node {
         }
     }
 
-    //ToDo: fn is_default_namespace(uri: String) -> bool;
+    //ToDo: fn is_default_namespace(uri: String) -> bool; //Need to figure out how to manipulate inner trait
 
     fn is_equal_node<T: IntoNode>(&self, reference: &T) -> bool {
         let reference = reference.node();
