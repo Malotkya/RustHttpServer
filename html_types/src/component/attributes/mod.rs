@@ -8,7 +8,7 @@ pub mod value;
 pub use value::*;
 
 #[derive(Clone, PartialEq)]
-pub(crate) struct AttributeItem(AttributeName, AttributeValue);
+pub(crate) struct AttributeItem(pub(crate) AttributeName, pub(crate) AttributeValue);
 
 impl AttributeItem {
     pub fn key(&self) -> &str {
@@ -17,6 +17,14 @@ impl AttributeItem {
 
     pub fn value(&self) -> &AttributeValue {
         &self.1
+    }
+
+    pub fn coarse_list(&mut self) -> &mut SpaceSeperatedList {
+        if !self.1.is_list() {
+            self.1 = AttributeValue::ClassList(self.1.as_str().into());
+        }
+        
+        self.1.list_mut().unwrap()
     }
 
     pub fn set_value<T: ToAttributeValue>(&mut self, value:T) -> AttributeValue {
@@ -38,6 +46,18 @@ impl ToString for AttributeItem {
             } else {
                 String::new()
             },
+            AttributeValue::ClassList(list) => {
+                let key = self.0.value();
+                let value = list.to_string();
+
+                let mut output = String::with_capacity(key.len() + value.len() + 3);
+                output.push_str(key);
+                output.push_str("=\"");
+                output.push_str(&value);
+                output.push('"');
+
+                output
+            }
             AttributeValue::String(value) => {
                 let key = self.0.value();
 
@@ -60,8 +80,8 @@ macro_rules! MakeAttributes {
                 $crate::component::attributes::types::AutoCapitalize),
             auto_focus: ("autofocus", bool),
             //(auto_correct, "autocorrect") Javascript?
-            class: ("class",  
-                $crate::component::attributes::types::SpaceSeperatedList),
+            //class: ("class",  
+            //    $crate::component::attributes::types::SpaceSeperatedList),
             content_editable: ("contenteditable",  
                 $crate::component::attributes::types::ContentEditable),
             text_direction: ("dir",  
