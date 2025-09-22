@@ -132,7 +132,7 @@ fn build_getter_setter(value: AttributeProps) -> proc_macro2::TokenStream {
             None
         }
 
-        pub fn #getter_name(&self) -> Option<bool> {
+        pub fn #getter_name(&self) -> Option<#return_type> {
             let internal = self.0.borrow_mut();
 
             for att in & internal.attributes {
