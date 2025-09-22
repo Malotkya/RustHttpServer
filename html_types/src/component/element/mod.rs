@@ -4,12 +4,13 @@ use std::{
         HashMap
     },
     rc::Rc,
-    cell::RefCell
+    cell::{RefCell, RefMut}
 };
 use super::{
     //node::*,
     attributes::{
         aria::MakeAriaAttributes,
+        types::SpaceSeperatedList,
         AttributeValue,
         MakeAttributes,
         AttributeItem,
@@ -27,6 +28,28 @@ pub struct ElementData {
     attributes: Vec<AttributeItem>,
     parrent: Option<Node>,
     children: LinkedList<Node>
+}
+
+impl ElementData {
+    fn class(&mut self) -> &mut SpaceSeperatedList {
+        let mut pos:i64 = -1;
+        for (index, att) in self.attributes.iter().enumerate() {
+            if att.key() == "class" {
+                pos = index as i64;
+                break;
+            }
+        }
+
+        if pos < 0 {
+            pos = self.attributes.len() as i64;
+            self.attributes.push(AttributeItem(
+                AttributeName::Static("class"),
+                AttributeValue::ClassList(SpaceSeperatedList::new())
+            ));
+        }
+
+        self.attributes.iter_mut().nth(pos as usize).unwrap().coarse_list()
+    }
 }
 
 impl PartialEq for ElementData {
@@ -89,9 +112,9 @@ impl NodeInternalData for ElementData {
 
 pub struct Element(pub(crate) Rc<RefCell<ElementData>>);
 
-impl Into<Node> for Element {
-    fn into(self) -> Node {
-        Node::Element(self.0)
+impl IntoNode for Element {
+    fn node(&self) -> Node {
+        Node::Element(self.0.clone())
     }
 }
 
@@ -122,11 +145,14 @@ impl Element {
         }).collect()
     }
 
-    fn child_elements(&self) -> Vec<Element> {
+    fn child_elements(&self) -> Vec<Node> {
         let inner = self.0.borrow();
-        inner.children.iter().filter_map(|node|match node {
-            Node::Element(data) => Some(Element(data.clone())),
-            _ => None
+        inner.children.iter().filter_map(|node| {
+            if node.is_visual_element() {
+                Some(node.node())
+            } else {
+                None
+            }
         }).collect()
     }
 
@@ -136,7 +162,7 @@ impl Element {
         let mut count:usize = 0;
 
         for node in &inner.children {
-            if node.node_type() == NodeType::ElementNode {
+            if node.is_visual_element() {
                 count += 1;
             }
         }
@@ -144,22 +170,50 @@ impl Element {
         count
     }
 
-    fn class_list(&self) -> &Vec<String> {
-        todo!("Access class list attribute");
+    fn class_list(&self) -> RefMut<'_, SpaceSeperatedList> {
+        let inner = self.0.borrow_mut();
+        RefMut::map(inner, |x: &mut ElementData |x.class())
     }
 
-    
+    fn class_name(&self) -> RefMut<'_, String> {
+        let inner = self.0.borrow_mut();
+        RefMut::map(inner, |x: &mut ElementData|x.class().inner())
+    }
+
+    //fn client_hight(&self) -> uszie;
+    //fn client_left(&self) -> usize;
+    //fn client_top(&self) -> usize;
+    //fn client_width(&self) -> usize;
+    //fn current_css_zoom(&self) -> f64;
+
+    fn first_element_child(&self) -> Option<Node> {
+        let inner = self.0.borrow();
+
+        for value in &inner.children {
+            if value.is_visual_element() {
+                return Some(value.node())
+            }
+        }
+
+        None
+    }
+
+    fn last_element_child(&self) -> Option<Node> {
+        let inner = self.0.borrow();
+
+        for value in inner.children.iter().rev() {
+            if value.is_visual_element() {
+                return Some(value.node())
+            }
+        }
+
+        None
+    }
 }
 
 /*
 fn class_name(&self) -> String;
-    fn client_hight(&self) -> uszie;
-    fn client_left(&self) -> usize;
-    fn client_top(&self) -> usize;
-    fn client_width(&self) -> usize;
-    fn current_css_zoom(&self) -> f64;
-    fn first_element_child(&self) -> Option<Node>;
-    fn last_element_child(&self) -> Option<Node>;
+    
     fn local_name(&self) -> String;
     fn namespace_uri(&self) -> Option<String>;
     fn next_element_sibbling(&self) -> Option<Node>;
