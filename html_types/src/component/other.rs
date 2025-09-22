@@ -5,6 +5,53 @@ use super::{
 };
 
 NodeType!(
+    Node::DocumentType = DocumentType();
+    Data{parrent: Option<Node>}:(
+        NodeInternalData:{
+            DefaultParrentAccess!();
+            StaticName!();
+        };
+        PartialEq: {
+            fn eq(&self, other: &Self) -> bool {
+                if let Some(lhs) = &self.parrent
+                    && let Some(rhs) = &other.parrent {
+                
+                    lhs.is_same_node(rhs)
+                } else {
+                    false
+                }
+            }
+        };
+    )
+);
+
+NodeType!(
+    Node::DocumentFragment = DocumentFragment();
+    Data{
+        parrent: Option<Node>,
+        children: LinkedList<Node>
+    }: (
+        NodeInternalData:{
+            DefaultChildrenAccess!();
+            DefaultParrentAccess!();
+            StaticName!();
+        };
+        PartialEq: {
+            fn eq(&self, other: &Self) -> bool {
+                if let Some(lhs) = &self.parrent
+                    && let Some(rhs) = &other.parrent
+                    && lhs.is_same_node(rhs) {
+                
+                    self.children == other.children
+                } else {
+                        false
+                }
+            } 
+        };
+    )
+);
+
+NodeType!(
     Node::CdataSection = CdataSection();
     Data{
         parrent: Option<Node>,

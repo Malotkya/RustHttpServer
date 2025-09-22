@@ -5,7 +5,7 @@ use std::{
 };
 use super::{
     attributes::AttributeItem,
-    document::{DocumentData, DocumentFragmentData, DocumentTypeData},
+    document::DocumentData,
     element::ElementData,
     other::*
 };
