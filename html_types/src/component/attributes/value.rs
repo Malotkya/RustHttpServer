@@ -5,14 +5,36 @@ use std::{
     str::FromStr
 };
 use super::SpaceSeperatedList;
-
 pub use super::aria::types::*;
 
-#[derive(Clone, PartialEq)]
+pub enum AttributeMatchOperator {
+    Exact,
+    WhitespaceValue,
+    Contains,
+    Prefix,
+    Suffix
+}
+
+#[derive(Clone)]
 pub enum AttributeValue {
     String(String),
     ClassList(SpaceSeperatedList),
     Boolean(bool)
+}
+
+impl<T: ToAttributeValue> PartialEq<T> for AttributeValue {
+    fn eq(&self, other: &T) -> bool {
+        let other = other.into_value();
+        if let Self::Boolean(value) = self {
+            if *value {
+                other.is_truthy()
+            } else {
+                other.as_str().to_lowercase() == "false"
+            }
+        } else {
+            self.as_str() == other.as_str()
+        }
+    }
 }
 
 impl ToAttributeValue for AttributeValue {
@@ -39,6 +61,25 @@ impl AttributeValue {
             } else {
                 "false"
             }
+        }
+    }
+
+    #[inline]
+    pub fn has<T: ToAttributeValue>(&self, value:&T) -> bool {
+        self.as_str().find(value.into_value().as_str()).is_some()
+    }
+
+    #[inline]
+    pub fn ends_with<T: ToAttributeValue>(&self, value:&T) -> bool {
+        self.as_str().ends_with(value.into_value().as_str())
+    }
+
+    #[inline]
+    pub fn starts_with<T: ToAttributeValue>(&self, value:&T) -> bool {
+        if let Some(index) = self.as_str().find(value.into_value().as_str()) {
+            index == 0
+        } else {
+            false
         }
     }
 
@@ -83,10 +124,38 @@ impl AttributeValue {
     pub fn parse<T: FromAttribteValue>(&self) -> T {
         T::parse_from(self)
     }
+
+    pub fn compare<T: ToAttributeValue>(&self, operator:AttributeMatchOperator, other:&T) -> bool {
+        match operator {
+            AttributeMatchOperator::Prefix => self.starts_with(other),
+            AttributeMatchOperator::Suffix => self.ends_with(other),
+            AttributeMatchOperator::Contains => self.has(other),
+            AttributeMatchOperator::Exact => Self::eq(self, other),
+            AttributeMatchOperator::WhitespaceValue => match self {
+                Self::ClassList(list) => list.has(other),
+                _ => {
+                    let other = other.into_value();
+                    for str in self.as_str().split_whitespace() {
+                        if str == other.as_str() {
+                            return true;
+                        }
+                    }
+
+                    false
+                }
+            }
+        }
+    }
 }
 
 pub trait ToAttributeValue {
     fn into_value(&self) -> AttributeValue;
+}
+
+impl<T: ToAttributeValue> ToAttributeValue for &T {
+    fn into_value(&self) -> AttributeValue {
+        (*self).into_value()
+    }
 }
 
 impl ToAttributeValue for String {

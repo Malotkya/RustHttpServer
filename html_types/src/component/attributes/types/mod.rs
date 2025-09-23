@@ -113,36 +113,40 @@ impl SpaceSeperatedList {
         }
     }
 
-    pub fn has(&self, value:&str) -> bool {
-        self.find(value, 0).is_some()
+    pub fn has<T: ToAttributeValue>(&self, value:&T) -> bool {
+        self.find(value.into_value().as_str(), 0).is_some()
     }
 
-    pub fn add(&mut self, value:&str) -> bool {
-        if self.find(value, 0).is_none() {
+    pub fn add<T: ToAttributeValue>(&mut self, value:&T) -> bool {
+        let value = value.into_value();
+        if self.find(value.as_str(), 0).is_none() {
             self.0.push(' ');
-            self.0.push_str(value);
+            self.0.push_str(value.as_str());
             true
         } else {
             false
         }
     }
 
-    pub fn remove(&mut self, value:&str) -> bool {
-        if let Some(index) = self.find(value, 0) {
-            self.0.replace_range(index..index+value.len(), "");
+    pub fn remove<T: ToAttributeValue>(&mut self, value:&T) -> bool {
+        let value = value.into_value();
+        if let Some(index) = self.find(value.as_str(), 0) {
+            self.0.replace_range(index..index+value.as_str().len(), "");
             true
         } else {
             false
         }
     }
 
-    pub fn toggle(&mut self, value:&str) -> bool {
-        if let Some(index) = self.find(value, 0) {
-            self.0.replace_range(index..index+value.len(), "");
+    pub fn toggle<T: ToAttributeValue>(&mut self, value:&T) -> bool {
+        let value = value.into_value();
+        
+        if let Some(index) = self.find(value.as_str(), 0) {
+            self.0.replace_range(index..index+value.as_str().len(), "");
             false
         } else {
             self.0.push(' ');
-            self.0.push_str(value);
+            self.0.push_str(value.as_str());
             true
         }
     }
