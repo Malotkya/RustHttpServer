@@ -118,7 +118,7 @@ macro_rules! NodeType {
 
         impl IntoNode for $struct_name {
             fn node(&self) -> Node {
-                $node_type(self.0.clone())
+                Node($node_type(self.0.clone()))
             }
         }
     }};

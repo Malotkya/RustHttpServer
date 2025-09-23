@@ -1,7 +1,13 @@
-use std::collections::LinkedList;
+use std::{
+    collections::LinkedList,
+    rc::Rc,
+    cell::RefCell
+};
 use super::{
     node::*,
-    attributes::AttributeItem,
+    attributes::{AttributeItem, AttributeName},
+    element::ElementData
+    
 };
 
 pub(crate) struct DocumentData {
@@ -18,10 +24,24 @@ impl PartialEq for DocumentData {
     }
 }
 
+impl Into<ElementData> for &DocumentData {
+    fn into(self) -> ElementData {
+        ElementData {
+            name: AttributeName::Static("html"),
+            attributes: self.attriubutes.clone(),
+            parrent: None,
+            children: self.children.iter()
+                .map(|n|n.node())
+                .collect()
+
+        }
+    }
+}
+
 impl NodeInternalData for DocumentData {
     DefaultChildrenAccess!();
     DefaultAttributeAccess!();
-    StaticName!();
+    StaticName!("html");
     
     fn parrent(&self) -> Option<&Node> {
         None
@@ -29,5 +49,13 @@ impl NodeInternalData for DocumentData {
 
     fn set_parrent(&mut self, _: Option<&Node>) {
         panic!("Attempted to set a parrent to the DocumentElement!")
+    }
+}
+
+pub struct Document(Rc<RefCell<DocumentData>>);
+
+impl IntoNode for Document {
+    fn node(&self) -> Node {
+        Node(NodeInternal::Document(self.0.clone()))
     }
 }

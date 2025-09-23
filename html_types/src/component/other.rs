@@ -1,11 +1,12 @@
 use std::{cell::RefCell, rc::Rc, collections::LinkedList};
 use super::{
     node::*,
-    attributes::{AttributeName, AttributeValue, AttributeItem}
+    attributes::{AttributeName, AttributeValue, AttributeItem},
+    element::ElementData
 };
 
 NodeType!(
-    Node::DocumentType = DocumentType();
+    NodeInternal::DocumentType = DocumentType();
     Data{parrent: Option<Node>}:(
         NodeInternalData:{
             DefaultParrentAccess!();
@@ -26,7 +27,7 @@ NodeType!(
 );
 
 NodeType!(
-    Node::DocumentFragment = DocumentFragment();
+    NodeInternal::DocumentFragment = DocumentFragment();
     Data{
         parrent: Option<Node>,
         children: LinkedList<Node>
@@ -52,7 +53,7 @@ NodeType!(
 );
 
 NodeType!(
-    Node::CdataSection = CdataSection();
+    NodeInternal::CdataSection = CdataSection();
     Data{
         parrent: Option<Node>,
         children: LinkedList<Node>
@@ -71,8 +72,12 @@ NodeType!(
 );
 
 NodeType!(
-    Node::Text = Text(
+    NodeInternal::Text = Text(
         {
+            pub(crate) fn new(value:&str) -> Self {
+                Self(TextData::new(value, None))
+            }
+
             fn value(&self) -> String {
                 self.0.borrow().value.clone()
             }
@@ -83,7 +88,7 @@ NodeType!(
         pub value: String
     }:(
         {
-            pub fn new(data:&str, parrent: Option<&Node>) -> Rc<RefCell<Self>> {
+            pub(crate) fn new(data:&str, parrent: Option<&Node>) -> Rc<RefCell<Self>> {
                 Rc::new(RefCell::new(
                     Self { 
                         parrent: parrent.map(|n|n.node()),
@@ -104,8 +109,23 @@ NodeType!(
     )
 );
 
+impl Into<ElementData> for &TextData {
+    fn into(self) -> ElementData {
+        let mut list:LinkedList<Node> = LinkedList::new();
+        list.push_front(Text::new(&self.value).node());
+
+        ElementData {
+            name: AttributeName::Static(""),
+            attributes: Vec::new(),
+            parrent: self.parrent.as_ref()
+                .map(|n|n.node()),
+            children: list
+        }
+    }
+}
+
 NodeType!(
-    Node::Comment = Comment();
+    NodeInternal::Comment = Comment();
     Data{
         parrent: Option<Node>,
         pub value: String
@@ -123,13 +143,34 @@ NodeType!(
 );
 
 NodeType!(
-    Node::Attribute = Attribute();
+    NodeInternal::Attribute = Attribute({
+        pub(crate) fn new(value:&AttributeItem, parrent: Option<&impl IntoNode>) -> Self {
+            Self(
+                AttributeData::new(
+                    value.clone(),
+                    parrent.map(|n|n.node())
+                )
+            )
+        }
+    });
     Data{
         parrent: Option<Node>,
         pub name: AttributeName,
         pub value: AttributeValue
     }:(
         {
+            pub fn new(value: AttributeItem, parrent: Option<Node>) -> Rc<RefCell<Self>> {
+                Rc::new(
+                    RefCell::new(
+                        Self {
+                            parrent,
+                            name: value.0,
+                            value: value.1
+                        }
+                    )
+                )
+            }
+
             pub fn item(&self) -> AttributeItem {
                 AttributeItem(self.name.clone(), self.value.clone())
             }

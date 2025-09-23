@@ -6,17 +6,16 @@ use std::{
     rc::Rc,
     cell::{RefCell, RefMut}
 };
+
 use super::{
     //node::*,
     attributes::{
         aria::MakeAriaAttributes,
         types::SpaceSeperatedList,
-        AttributeValue,
-        MakeAttributes,
-        AttributeItem,
-        AttributeName
+        *
     },
-    node::*
+    node::*,
+    other::{DocumentFragment, Attribute, Text}
 };
 
 //mod types;
@@ -24,10 +23,10 @@ use super::{
 //pub(crate) use macros::BuildHtmlElement;
 
 pub struct ElementData {
-    name: AttributeName,
-    attributes: Vec<AttributeItem>,
-    parrent: Option<Node>,
-    children: LinkedList<Node>
+    pub(crate) name: AttributeName,
+    pub(crate) attributes: Vec<AttributeItem>,
+    pub(crate) parrent: Option<Node>,
+    pub(crate) children: LinkedList<Node>
 }
 
 impl ElementData {
@@ -114,7 +113,7 @@ pub struct Element(pub(crate) Rc<RefCell<ElementData>>);
 
 impl IntoNode for Element {
     fn node(&self) -> Node {
-        Node::Element(self.0.clone())
+        Node(NodeInternal::Element(self.0.clone()))
     }
 }
 
@@ -136,16 +135,16 @@ impl Element {
     MakeAriaAttributes!(GlobalAttributes);
     MakeAttributes!(GlobalAttributes);
     
-    //fn assigned_slot(&self) -> HtmlSlotElement;
+    //pub fn assigned_slot(&self) -> HtmlSlotElement;
 
-    fn attributes(&self) -> HashMap<String, AttributeValue> {
+    pub fn attributes(&self) -> HashMap<String, AttributeValue> {
         let inner = self.0.borrow();
         inner.attributes.iter().map(|att|{
             (att.key().to_owned(), att.value().clone())
         }).collect()
     }
 
-    fn child_elements(&self) -> Vec<Node> {
+    pub fn child_elements(&self) -> Vec<Node> {
         let inner = self.0.borrow();
         inner.children.iter().filter_map(|node| {
             if node.is_visual_element() {
@@ -156,7 +155,7 @@ impl Element {
         }).collect()
     }
 
-    fn child_element_count(&self) -> usize {
+    pub fn child_element_count(&self) -> usize {
         let inner = self.0.borrow();
         
         let mut count:usize = 0;
@@ -170,23 +169,37 @@ impl Element {
         count
     }
 
-    fn class_list(&self) -> RefMut<'_, SpaceSeperatedList> {
+    pub fn class_list(&self) -> RefMut<'_, SpaceSeperatedList> {
         let inner = self.0.borrow_mut();
         RefMut::map(inner, |x: &mut ElementData |x.class())
     }
 
-    fn class_name(&self) -> RefMut<'_, String> {
+    pub fn class_name(&self) -> RefMut<'_, String> {
         let inner = self.0.borrow_mut();
         RefMut::map(inner, |x: &mut ElementData|x.class().inner())
     }
 
-    //fn client_hight(&self) -> uszie;
-    //fn client_left(&self) -> usize;
-    //fn client_top(&self) -> usize;
-    //fn client_width(&self) -> usize;
-    //fn current_css_zoom(&self) -> f64;
+    pub fn client_hight(&self) -> usize {
+        0 //No actual rendering or calculating will be done
+    }
+    
+    pub fn client_left(&self) -> usize {
+        0 //No actual rendering or calculating will be done
+    }
 
-    fn first_element_child(&self) -> Option<Node> {
+    pub fn client_top(&self) -> usize {
+        0 //No actual rendering or calculating will be done
+    }
+
+    pub fn client_width(&self) -> usize {
+        0 //No actual rendering or calculating will be done
+    }
+
+    pub fn current_css_zoom(&self) -> f64 {
+        0.0 //No actual rendering or calculating will be done
+    }
+
+    pub fn first_element_child(&self) -> Option<Node> {
         let inner = self.0.borrow();
 
         for value in &inner.children {
@@ -198,7 +211,7 @@ impl Element {
         None
     }
 
-    fn last_element_child(&self) -> Option<Node> {
+    pub fn last_element_child(&self) -> Option<Node> {
         let inner = self.0.borrow();
 
         for value in inner.children.iter().rev() {
@@ -209,59 +222,298 @@ impl Element {
 
         None
     }
-}
 
-/*
-fn class_name(&self) -> String;
-    
-    fn local_name(&self) -> String;
-    fn namespace_uri(&self) -> Option<String>;
-    fn next_element_sibbling(&self) -> Option<Node>;
-    fn outer_html(&self) -> String
-    fn get_part(&self) -> Part;
-    fn set_part(&mut self, value:Part);
-    fn prefix(&self) -> String;
-    fn previous_element_sibbling(&self);
-    fn scroll_height(&self) -> usize;
-    fn scroll_left(&self) -> usize;
-    fn scroll_top(&self) -> usize;
-    fn scroll_width(&self) -> usize;
-    fn get_slot(&self) -> Slot;
-    fn set_slot(&mut self, value:Slot);
-    fn tag_name(&self) -> String;
-    fn after(&mut self, list: &[Node]);
-    fn animate(&mut self, keyframs, options);
-    fn append(&mut self, list: &[Node]);
-    fn before(&mut self, list: &[Node]);
-    fn check_visibility(&self, options) -> bool;
-    fn closest(&self) -> Option<Node>;
-    fn get_animations(&self) -> Animations;
-    pub fn get_attribute(&self, name:&str) -> Option<$crate::component::AttributeValue> {
-            let interanl = self.0.borrow();
-            for att in &interanl.attributes {
-                if att.key() == name {
-                    return Some(att.value().clone())
+    pub fn local_name(&self) -> String {
+        let inner = self.0.borrow();
+        let name = inner.name.value();
+
+        if let Some(index) = name.rfind(":") {
+            name[index+1..].to_string()
+        } else {
+            name.to_string()
+        }
+    }
+
+    pub fn namespace_uri(&self) -> Option<String> {
+        None
+    }
+
+    pub fn next_element_sibbling(&self) -> Option<Node> {
+        let inner = self.0.borrow();
+
+        if let Some(parrent) = inner.parrent() {
+            let parrent = parrent.0.borrow();
+
+            if let Ok(list) = parrent.children() {
+                let mut it = list.iter();
+
+                while let Some(next) = it.next() {
+                    if next.is_same_node(self) {
+                        break;
+                    }
+                }
+
+                while let Some(next) = it.next() {
+                    if next.is_visual_element() {
+                        return Some(next.node())
+                    }
                 }
             }
+        }
 
+        None
+    }
+
+    pub fn outer_html(&self) -> String {
+        todo!("Compile html")
+    }
+
+    pub fn prefix(&self) -> Option<String> {
+        let inner = self.0.borrow();
+        let name = inner.name.value();
+
+        if let Some(index) = name.rfind(":") {
+            Some(name[..index].to_string())
+        } else {
             None
         }
-    fn get_attribute_names(&self) -> Vec<String>;
-    fn get_attribute_node(&self, name:&str) -> Option<Node>;
-    fn get_attribute_ns(&self, namespace:&str, name:&str) -> Option<Attribute>;
-    fn get_bounding_client_rect(&self) -> ??;
-    fn get_client_rects() -> ??;
-    fn get_elements_by_class_name(&self, name:&str) -> LinkedList<Node>;
-    fn get_elements_by_tag_name(&self, name:&str) -> LinkedList<Node>;
-    fn get_html(&self) -> String;
-    fn has_attribute(&self, name:&str) -> bool;
-    fn has_attributes(&self, list:&[impl ToString]) -> bool;
-    fn insert_adjasent_element(&mut self, pos:ENUM, element: Node) -> Result<(), ERROR>;
-    fn insert_adjasent_html(&mut self, pos:ENUM, html: &str) -> Result<(), ERROR>;
-    fn insert_adjasent_text(&mut self, pos:ENUM, text: &str) -> Result<(), ERROR>;
-    fn matches(&self, query:&str) -> bool;
-    fn move_before(&mut self, reference:&Node);
-    fn prepend(&mut self, node:&Node);
+    }
+
+    pub fn previous_element_sibbling(&self) -> Option<Node> {
+        let inner = self.0.borrow();
+
+        if let Some(parrent) = inner.parrent() {
+            let parrent = parrent.0.borrow();
+
+            if let Ok(list) = parrent.children() {
+                let mut prev: Option<Node> = None;
+                let mut it = list.iter();
+
+                while let Some(next) = it.next() {
+                    if next.is_same_node(self) {
+                        return prev;
+                    } else if next.is_visual_element() {
+                        prev = Some(next.node())
+                    }
+                }
+            }
+        }
+
+        None
+    }
+
+    pub fn scroll_height(&self) -> usize {
+        0 //No actual rendering or calculating will be done
+    }
+
+    pub fn scroll_left(&self) -> usize {
+        0 //No actual rendering or calculating will be done
+    }
+    
+    pub fn scroll_top(&self) -> usize {
+        0 //No actual rendering or calculating will be done
+    }
+    
+    pub fn scroll_width(&self) -> usize {
+        0 //No actual rendering or calculating will be done
+    }
+    
+    pub fn shadow_root(&self) -> Option<DocumentFragment> {
+        None //TODO: Return whole thing as shadow root ???
+    }
+
+    pub fn tag_name(&self) -> String {
+        self.0.borrow().name().to_owned()
+    }
+
+    pub fn after(&self, list: &[impl IntoNode]) -> Result<(), NodeError> {
+        append_parrent_helper(self, list, true)
+    }
+
+    //ToDo: pub fn animate(&mut self, keyframs, options);   
+
+    fn append(&self, list: &[impl IntoNode]) {
+        let mut inner = self.0.borrow_mut();
+        inner.children.append(&mut list.iter()
+            .map(|n|n.node())
+            .collect()
+        )
+    }
+
+    fn before(&self, list: &[impl IntoNode]) -> Result<(), NodeError> {
+        append_parrent_helper(self, list, false)
+    }
+
+     pub fn check_visibility(&self, _options:Option<VisibilityOptions>) -> bool {
+        false //TODO: May Implement further at a later time.
+
+        //Returns False When:
+        // Css-Display for self or parrent is set to None or Contents.
+        // Content-Visibility for self or parrent is set to hidden
+        // Optional Checks:
+        // If Content-Visibility is Auto and being skipped (default false)
+        // If Opacity is set to 0 (default false)
+        // If visibility is hidden or collapse and hidden (default false)
+    }
+
+    fn closest(&self, selector:&str) -> Option<Node> {
+        todo!("Css style selectors implementation")
+    }
+
+    //ToDo:pub fn computed_style_map() -> CssStyleMap;
+
+    //ToDo:pub fn get_animations(&self) -> Animations;
+
+    pub fn get_attribute(&self, name:&str) -> Option<AttributeValue> {
+        let interanl = self.0.borrow();
+        for att in &interanl.attributes {
+            if att.key() == name {
+                return Some(att.value().clone())
+            }
+        }
+
+        None
+    }
+
+    pub fn get_attribute_names(&self) -> Vec<String> {
+        self.0.borrow().attributes.iter().map(|item|{
+            item.key().to_string()
+        }).collect()
+    }
+
+    pub fn get_attribute_node(&self, name:&str) -> Option<Attribute> {
+        let interanl = self.0.borrow();
+        for att in &interanl.attributes {
+            if att.key() == name {
+                return Some(
+                    Attribute::new(att, Some(self))
+                )
+            }
+        }
+
+        None
+    }
+
+    pub fn get_attribute_ns(&self, _namespace:&str, name:&str) -> Option<AttributeValue> {
+        self.get_attribute(name)
+    }
+
+    //ToDo:pub fn get_bounding_client_rect(&self) -> ??;
+    //ToDo:pub fn get_client_rects() -> ??;
+
+    pub fn get_elements_by_class_name(&self, name:&str) -> Vec<Node> {
+        self.0.borrow().children.iter().filter_map(|node|{
+            let mut inner = node.0.borrow_mut();
+            
+            if let Some(list) = inner.attributes_mut() {
+                for att in list {
+                    if att.key() == "class" && att.coarse_list().as_str() == name {
+                        return Some(node.node())
+                    }
+                }
+
+                None
+            } else {
+                None
+            }
+        }).collect()
+    }
+
+    pub fn get_elements_by_tag_name(&self, name:&str) -> Vec<Node> {
+        self.0.borrow().children.iter().filter_map(|node|{
+            if node.node_name() == name {
+                Some(node.node())
+            } else {
+                None
+            }
+        }).collect()
+    }
+
+    //ToDo:pub fn get_html(&self, shadow_root:Option<bool>) -> String
+
+    pub fn has_attribute(&self, name:&str) -> bool {
+        for att in &self.0.borrow().attributes {
+            if att.key() == name {
+                return true;
+            }
+        }
+
+        false
+    }
+
+    pub fn has_attributes(&self, list:&[impl ToString]) -> bool {
+        for into in list {
+            if !self.has_attribute(&into.to_string()) {
+                return false;
+            }
+        }
+
+        true
+    }
+
+    //ToDo: pub fn has_pointer_capture(&self, pointer_id) -> bool;
+
+    pub fn insert_adjasent_element(&self, pos:InsertPosition, element:&Element) -> Result<(), NodeError> {
+        match pos {
+            InsertPosition::BeforeBegin => self.before(&[element]),
+            InsertPosition::AfterEnd => self.after(&[element]),
+            InsertPosition::BeforeEnd => {
+                self.append(&[element]);
+                Ok(())
+            },
+            InsertPosition::AfterBegin => {
+                self.prepend(&[element]);
+                Ok(())
+            }
+        }
+    }
+
+    pub fn insert_adjasent_html(&self, pos:InsertPosition, html: &str) -> Result<(), NodeError> {
+        todo!("Implment html")
+    }
+
+    pub fn insert_adjasent_text(&self, pos:InsertPosition, text: &str) -> Result<(), NodeError> {
+        match pos {
+            InsertPosition::BeforeBegin => self.before(&[Text::new(text)]),
+            InsertPosition::AfterEnd => self.after(&[Text::new(text)]),
+            InsertPosition::BeforeEnd => {
+                self.append(&[Text::new(text)]);
+                Ok(())
+            },
+            InsertPosition::AfterBegin => {
+                self.prepend(&[Text::new(text)]);
+                Ok(())
+            }
+        }
+    }
+
+    pub fn matches(&self, query:&str) -> bool {
+        todo!("Implement css-query string")
+    }
+
+    pub fn move_before(&self, node:&impl IntoNode, reference:&impl IntoNode) {
+        
+    }
+
+    pub fn prepend(&self, list:&[impl IntoNode]) {
+        let mut inner = self.0.borrow_mut();
+        let mut new_list: LinkedList<Node> = list.iter()
+            .map(|n|n.node())
+            .collect();
+
+        new_list.append(&mut inner.children);
+        inner.children = new_list
+    }
+}
+
+
+
+
+
+/*
+    
+    
+    
     fn query_selector(&self, query:String) -> Option<Node>;
     fn query_selector_all(&self, query:String) -> LinkedList<Node>;
     fn remove(&mut self);
@@ -310,6 +562,51 @@ fn class_name(&self) -> String;
             None
         }
  */
+
+fn append_parrent_helper(child:&Element, list: &[impl IntoNode], after:bool) -> Result<(), NodeError> {
+    let inner = child.0.borrow_mut(); 
+
+    if let Some(parrent) = inner.parrent() {
+        let mut parrent = parrent.0.borrow_mut();
+        let children = parrent.children_mut().unwrap();
+
+        let mut index:Option<usize> = None;
+        for (i, node) in children.iter().enumerate() {
+            if node.is_same_node(child) {
+                index = Some(i);
+                break;
+            }
+        }
+        let mut index = index.expect("Unable to find self in parrent!");
+        if after {
+            index += 1;
+        }
+
+        let mut tail = children.split_off(index as usize);
+        children.append(&mut list.iter()
+            .map(|n|n.node())
+            .collect()
+        );
+        children.append(&mut tail);
+
+        Ok(())
+    } else {
+        Err(NodeError::NoParrent)
+    }
+}
+
+pub struct VisibilityOptions {
+    content_visibility_auto: Option<bool>,
+    opacity_property: Option<bool>,
+    visibility_property: Option<bool>
+}
+
+pub enum InsertPosition {
+    BeforeBegin,
+    AfterBegin,
+    BeforeEnd,
+    AfterEnd
+}
 
 pub trait HtmlElement {
     //https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement
