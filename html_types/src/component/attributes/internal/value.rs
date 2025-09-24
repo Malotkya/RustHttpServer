@@ -4,9 +4,9 @@ use std::{
     ops::{Deref, DerefMut},
     str::FromStr
 };
-use super::SpaceSeperatedList;
-pub use super::aria::types::*;
+use crate::component::attributes::SpaceSeperatedList;
 
+#[derive(Clone)]
 pub enum AttributeMatchOperator {
     Exact,
     WhitespaceValue,

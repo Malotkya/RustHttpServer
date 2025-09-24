@@ -65,6 +65,7 @@ macro_rules! AttributeEnum {
         $enum_name:ident, $default:ident,
         $( ($name:ident, $value:literal) ),+
     ) => {
+        #[derive(Clone, PartialEq)]
         pub enum $enum_name {
             $( $name ),+
         }

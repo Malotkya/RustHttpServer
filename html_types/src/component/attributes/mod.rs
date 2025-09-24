@@ -1,134 +1,64 @@
+use crate::component::{
+    document::{DocumentItemRef, InternalRef},
+    node::{IntoNode, Node, NodeData}
+};
+use std::ops::Deref;
 
 pub mod aria;
-pub mod name;
-pub use name::*;
 pub mod types;
 pub use types::*;
-pub mod value;
-pub use value::*;
+mod internal;
+pub use internal::*;
 
-#[derive(Clone, PartialEq)]
-pub(crate) struct AttributeItem(pub(crate) AttributeName, pub(crate) AttributeValue);
 
-impl AttributeItem {
-    pub fn key(&self) -> &str {
-        self.0.value()
+
+pub struct Attribute(pub(crate) DocumentItemRef<AttributeData>);
+
+impl Attribute {
+    fn name(&self) -> &str {
+        self.0.borrow().name()
     }
 
-    pub fn value(&self) -> &AttributeValue {
-        &self.1
-    }
-
-    pub fn coarse_list(&mut self) -> &mut SpaceSeperatedList {
-        if !self.1.is_list() {
-            self.1 = AttributeValue::ClassList(self.1.as_str().into());
-        }
-        
-        self.1.list_mut().unwrap()
-    }
-
-    pub fn set_value<T: ToAttributeValue>(&mut self, value:T) -> AttributeValue {
-        let old_value = self.1.clone();
-        self.1 = value.into_value();
-        old_value
-    }
-
-    pub fn toggle_value(&mut self, value:bool) {
-        self.1 = AttributeValue::Boolean(value)
+    fn value(&self) -> &AttributeValue {
+        self.0.borrow().value()
     }
 }
 
-impl ToString for AttributeItem {
-    fn to_string(&self) -> String {
-        match &self.1 {
-            AttributeValue::Boolean(b) => if *b {
-                self.0.value().to_owned()
-            } else {
-                String::new()
+impl IntoNode for Attribute {
+    fn node(&self) -> Node {
+        Node(
+            self.0.downgrade()
+        ) 
+    }
+}
+
+impl TryFrom<Node> for Attribute {
+    type Error = &'static str;
+
+    fn try_from(value:Node) -> Result<Self, Self::Error> {
+        TryInto::<Self>::try_into(&value)
+    }
+}
+
+impl TryFrom<&Node> for Attribute {
+    type Error = &'static str;
+
+    fn try_from(value:&Node) -> Result<Self, Self::Error> {
+        match value.0.deref() {
+            NodeData::Attribute(inner) => {
+                value.0.item.inc();
+
+                Ok(
+                    Self(
+                        DocumentItemRef::new (
+                            value.0.doc.clone(),
+                            value.0.item,
+                            inner
+                        )
+                    )
+                )
             },
-            AttributeValue::ClassList(list) => {
-                let key = self.0.value();
-                let value = list.to_string();
-
-                let mut output = String::with_capacity(key.len() + value.len() + 3);
-                output.push_str(key);
-                output.push_str("=\"");
-                output.push_str(&value);
-                output.push('"');
-
-                output
-            }
-            AttributeValue::String(value) => {
-                let key = self.0.value();
-
-                let mut output = String::with_capacity(key.len() + value.len() + 3);
-                output.push_str(key);
-                output.push_str("=\"");
-                output.push_str(value);
-                output.push('"');
-                output
-            }
+            _ => Err("Unable to convert to Attribute!")
         }
     }
 }
-
-macro_rules! MakeAttributes {
-    (GlobalAttributes) => {
-        html_macros::attribute_functions!(
-            access_key: ("accesskey", String),
-            auto_capitalize: ("autocapitalize", 
-                $crate::component::attributes::types::AutoCapitalize),
-            auto_focus: ("autofocus", bool),
-            //(auto_correct, "autocorrect") Javascript?
-            //class: ("class",  
-            //    $crate::component::attributes::types::SpaceSeperatedList),
-            content_editable: ("contenteditable",  
-                $crate::component::attributes::types::ContentEditable),
-            text_direction: ("dir",  
-                $crate::component::attributes::types::TextDirection),
-            draggable: ("draggable",  
-                $crate::component::attributes::types::Enumerable),
-            enter_key_hint: ("enterkeyhint",  
-                $crate::component::attributes::types::KeyHint),
-            export_parts: ("exportparts",  
-                $crate::component::attributes::types::SpaceSeperatedList),
-            hidden: ("hidden",  
-                $crate::component::attributes::types::Hidden),
-            id: ("id", String),
-            inert: ("inert", bool),
-            input_mode: ("inputmode",  
-                $crate::component::attributes::types::InputMode),
-            //(Is: "is"),
-            item_id: ("itemid", String),
-            item_prop: ("itemprop", String),
-            item_ref: ("itemref", String),
-            item_scope: ("itemscope", String),
-            item_type: ("itemtype", String),
-            language: ("lang", String),
-            nonce: ("nonce", String),
-            part: ("part",  
-                $crate::component::attributes::types::SpaceSeperatedList),
-            popover: ("popover", bool),
-            role: ("role",  
-                $crate::component::attributes::types::Role),
-            slot: ("slot", String),
-            spell_check: ("spellcheck", bool),
-            style: ("style", String), /*TODO: Seperate Styling */
-            tab_index: ("tabindex", String/*usize*/),
-            title: ("title", String),
-            translate: ("translate",  
-                $crate::component::attributes::types::Translate),
-            writing_suggestions: ("writingsuggestions", bool)
-        );
-    };
-    (
-        $( $func_name:ident: ($key: literal, $value:ty) ),+
-    ) => {
-
-        html_macros::attribute_functions!(
-            $( $func_name: ($key, $value) ),+
-        );
-    };
-}
-
-pub(crate) use MakeAttributes;
