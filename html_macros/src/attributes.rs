@@ -80,12 +80,12 @@ fn build_boolean_getter_setter(value: AttributeProps) -> proc_macro2::TokenStrea
                     .unwrap_or(false)
             );
 
-            self.0.toggle_attribute(#internal, None, value);
+            self.toggle_attribute_helper(#internal, None, value);
             
         }
 
         pub fn #getter_name(&self) -> Option<bool> {
-            self.0.get_attribute(#internal, None)
+            self.get_attribute_helper(#internal, None)
                 .map(|atr|atr.value().parse())
         }
     }
@@ -106,12 +106,12 @@ fn build_getter_setter(value: AttributeProps) -> proc_macro2::TokenStream {
 
     quote::quote! {
         pub fn #setter_name(&mut self, value:#return_type) -> Option<#return_type>{
-            self.0.set_attribute(#internal, None, value)
+            self.set_attribute_helper(#internal, None, value)
                 .map(|v|v.parse())
         }
 
         pub fn #getter_name(&self) -> Option<#return_type> {
-            self.0.get_attribute(#internal, None)
+            self.get_attribute_helper(#internal, None)
                 .map(|atr|atr.value().parse())
         }
     }
