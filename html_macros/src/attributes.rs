@@ -74,33 +74,19 @@ fn build_boolean_getter_setter(value: AttributeProps) -> proc_macro2::TokenStrea
     );
     
     quote::quote! {
-        pub fn #setter_name(&self, value:Option<bool>) {
+        pub fn #setter_name(&mut self, value:Option<bool>) {
             let value = !value.unwrap_or(
                 self.#getter_name()
                     .unwrap_or(false)
             );
 
-            let mut internal = self.0.borrow_mut();
-            for att in &mut internal.attributes {
-                if att.key() ==  #internal {
-                    att.toggle_value(value);
-                    return;
-                }
-            }
+            self.0.toggle_attribute(#internal, None, value);
             
         }
 
         pub fn #getter_name(&self) -> Option<bool> {
-            let internal = self.0.borrow_mut();
-            for att in & internal.attributes {
-                if att.key() == #internal {
-                    return Some(
-                        att.value().parse()
-                    )
-                }
-            }
-
-            None
+            self.0.get_attribute(#internal, None)
+                .map(|atr|atr.value().parse())
         }
     }
 }
@@ -119,31 +105,14 @@ fn build_getter_setter(value: AttributeProps) -> proc_macro2::TokenStream {
     );
 
     quote::quote! {
-        pub fn #setter_name(&self, value:#return_type) -> Option<#return_type>{
-            let mut internal = self.0.borrow_mut();
-            for att in &mut internal.attributes {
-                if att.key() ==  #internal {
-                    return Some(
-                        att.set_value(value).parse()
-                    )
-                }
-            }
-
-            None
+        pub fn #setter_name(&mut self, value:#return_type) -> Option<#return_type>{
+            self.0.set_attribute(#internal, None, value)
+                .map(|v|v.parse())
         }
 
         pub fn #getter_name(&self) -> Option<#return_type> {
-            let internal = self.0.borrow_mut();
-
-            for att in & internal.attributes {
-                if att.key() == #internal {
-                    return Some(
-                        att.value().parse()
-                    )
-                }
-            }
-
-            None
+            self.0.get_attribute(#internal, None)
+                .map(|atr|atr.value().parse())
         }
     }
 }
