@@ -16,15 +16,20 @@ macro_rules! DefaultChildrenAccess {
             Ok(())
         }
 
-        fn set_children(&mut self, list: &mut [Node]) -> Result<(), NodeError> {
-            self.children = self.children.iter()
-                .filter_map(|node|if node.is_visual_element(){
-                    None
-                } else {
-                    Some(node.clone())
-                }).collect();
+        fn set_children(&mut self, list: &[impl IntoNode]) -> Result<(), NodeError> {
+            let mut new_list = LinkedList::new();
 
-            self.children.append(&mut list.iter().map(|n|n.clone()).collect());
+            while let Some(next) = self.children.pop_front() {
+                if !next.is_visual_element() {
+                    new_list.push_back(next);
+                }
+            }
+
+            for new in list {
+                new_list.push_back(new.node());
+            }
+            
+            self.children = new_list;
 
             Ok(())
         }
