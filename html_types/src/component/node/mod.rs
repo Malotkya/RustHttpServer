@@ -1,137 +1,22 @@
 use std::{
     collections::LinkedList,
-    rc::Rc,
-    cell::{RefCell, Ref, RefMut},
+    cell::Ref
 };
+use crate::component::document::NodeDocumentItemRef;
+
 use super::{
-    attributes::AttributeItem,
-    document::DocumentData,
-    element::{ElementData, Element},
-    other::*
+    other::TextData,
+    document::DocumentItemRef
 };
 
+
+mod internal;
+pub use internal::*;
 mod macros;
 pub(crate) use macros::*;
 
-#[allow(unused_variables)]
-pub trait NodeInternalData {
-    fn children(&self) -> Result<&LinkedList<Node>, NodeError> {
-        Err(NodeError::NoChildrenList)
-    }
-    fn children_mut(&mut self) -> Result<&mut LinkedList<Node>, NodeError> {
-        Err(NodeError::NoChildrenList)
-    }
-    fn add_child(&mut self, child:Node, index: Option<usize>) -> Result<(), NodeError>{
-        Err(NodeError::NoChildrenList)
-    }
-    fn remove_child(&mut self, index:usize) -> Result<(), NodeError> {
-        Err(NodeError::NoChildrenList)
-    }
-    fn set_children(&mut self, list: LinkedList<Node>) -> Result<(), NodeError>{
-        Err(NodeError::NoChildrenList)
-    }
-
-    fn attributes(&self) -> Option<&Vec<AttributeItem>> {
-        None
-    }
-    fn attributes_mut(&mut self) -> Option<&mut Vec<AttributeItem>> {
-        None
-    }
-
-    fn name(&self) -> &str;
-    fn parrent(&self) -> Option<&Node>;
-    fn set_parrent(&mut self, parrent: Option<&Node>);
-
-    fn is_void(&self) -> bool{
-        self.children().is_err()
-    }
-}
-
 #[derive(PartialEq)]
-pub(crate) enum NodeInternal {
-    Element(Rc<RefCell<ElementData>>),
-    Attribute(Rc<RefCell<AttributeData>>),
-    Text(Rc<RefCell<TextData>>),
-    CdataSection(Rc<RefCell<CdataSectionData>>),
-    //ProcessingInstruction,
-    Comment(Rc<RefCell<CommentData>>),
-    Document(Rc<RefCell<DocumentData>>),
-    DocumentType(Rc<RefCell<DocumentTypeData>>),
-    DocumentFragment(Rc<RefCell<DocumentFragmentData>>)
-}
-
-impl NodeInternal {
-    pub(crate) fn borrow(&self) -> Ref<'_, dyn NodeInternalData> {
-        match self {
-            Self::Attribute(inner) => inner.borrow(),
-            Self::CdataSection(inner) => inner.borrow(),
-            Self::Comment(inner) => inner.borrow(),
-            Self::Document(inner) => inner.borrow(),
-            Self::DocumentFragment(inner) => inner.borrow(),
-            Self::DocumentType(inner) => inner.borrow(),
-            Self::Element(inner) => inner.borrow(),
-            Self::Text(inner) => inner.borrow(),
-        }
-    }
-
-    pub(crate) fn borrow_mut(&self) -> RefMut<'_, dyn NodeInternalData> {
-        match self {
-            Self::Attribute(inner) => inner.borrow_mut(),
-            Self::CdataSection(inner) => inner.borrow_mut(),
-            Self::Comment(inner) => inner.borrow_mut(),
-            Self::Document(inner) => inner.borrow_mut(),
-            Self::DocumentFragment(inner) => inner.borrow_mut(),
-            Self::DocumentType(inner) => inner.borrow_mut(),
-            Self::Element(inner) => inner.borrow_mut(),
-            Self::Text(inner) => inner.borrow_mut(),
-        }
-    }
-
-    pub(crate) fn ptr_value(&self) -> *const dyn NodeInternalData {
-        match self {
-            Self::Attribute(inner) => inner.as_ptr(),
-            Self::CdataSection(inner) => inner.as_ptr(),
-            Self::Comment(inner) => inner.as_ptr(),
-            Self::Document(inner) => inner.as_ptr(),
-            Self::DocumentFragment(inner) => inner.as_ptr(),
-            Self::DocumentType(inner) => inner.as_ptr(),
-            Self::Element(inner) => inner.as_ptr(),
-            Self::Text(inner) => inner.as_ptr(),
-        }
-    }
-}
-
-#[derive(PartialEq)]
-pub struct Node(pub(crate) NodeInternal);
-
-impl TryInto<Element> for Node {
-    type Error = &'static str;
-
-    fn try_into(self) -> Result<Element, Self::Error> {
-        TryInto::<Element>::try_into(&self)
-    }
-}
-
-impl TryInto<Element> for &Node {
-    type Error = &'static str;
-
-    fn try_into(self) -> Result<Element, Self::Error> {
-        match &self.0 {
-            NodeInternal::Element(inner) => Ok(Element(inner.clone())),
-            NodeInternal::Text(inner) => {
-                Ok(Element(Rc::new(RefCell::new(
-                    (&*inner.borrow()).into()
-                ))))
-            },
-            NodeInternal::Document(inner) => {
-                Ok(Element(Rc::new(RefCell::new(
-                    (&*inner.borrow()).into()
-                ))))
-            }
-            _ => Err("Unable to convert to Element!")
-        }
-    }
-}
+pub struct Node(pub(crate) NodeDocumentItemRef);
 
 pub trait IntoNode {
     fn node(&self) -> Node;
@@ -177,17 +62,22 @@ impl Node {
             _ => false
         }
     }
+
+    pub(crate) fn new_helper(inner: &DocumentItemRef<impl NodeInternalData>) -> Self {
+        Self(inner.downgrade())
+    }
 }
 
 //https://developer.mozilla.org/en-US/docs/Web/API/Node
 impl Node {
     //ToDo: fn base_uri(&self) -> String;
 
-    pub fn child_nodes(&self) -> Vec<Node> {
-        match self.0.borrow().children() {
-            Ok(list) => list.iter().map(|n|n.node()).collect(),
-            Err(_) => Vec::new()
-        }
+    pub fn child_nodes<'a>(&'a self) -> Ref<'a, NodeIterator<'a>> {
+        Ref::map(self.0.borrow(), |inner|{
+            &NodeIterator(
+                inner.children().ok().map(|list|list.iter())
+            )
+        })
     }
 
     pub fn is_connected(&self) -> bool {
@@ -436,7 +326,7 @@ fn find_child_helper(parrent: &Node, child:&Node) -> Result<Option<(Node, usize)
 
 pub enum NodeError {
     NoParrent,
-    NoChildrenList,
+    NoDescendents,
 }
 
 impl std::fmt::Debug for NodeError {
