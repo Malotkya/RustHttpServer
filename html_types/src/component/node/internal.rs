@@ -5,8 +5,7 @@ use crate::component::{
     element::ElementData,
     node::{
         Node,
-        NodeError,
-        IntoNode
+        NodeError
     },
     other::*,
     ChildIterator,
