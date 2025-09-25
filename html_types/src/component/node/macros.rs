@@ -16,7 +16,7 @@ macro_rules! DefaultChildrenAccess {
             Ok(())
         }
 
-        fn set_children(&mut self, list: &[impl IntoNode]) -> Result<(), NodeError> {
+        fn set_children(&mut self, list: &[Node]) -> Result<(), NodeError> {
             let mut new_list = LinkedList::new();
 
             while let Some(next) = self.children.pop_front() {

@@ -24,7 +24,7 @@ pub trait NodeInternalData {
     fn remove_child(&mut self, index:usize) -> Result<(), NodeError> {
         Err(NodeError::NoDescendents)
     }
-    fn set_children(&mut self, list:  &[impl IntoNode]) -> Result<(), NodeError>{
+    fn set_children(&mut self, list:  &[Node]) -> Result<(), NodeError>{
         Err(NodeError::NoDescendents)
     }
 
@@ -55,7 +55,7 @@ pub(crate) enum NodeData {
 }
 
 impl NodeData {
-    fn inner(&self) -> &impl NodeInternalData {
+    fn inner(&self) -> &dyn NodeInternalData {
         match self {
             Self::Attribute(inner) => inner as &dyn NodeInternalData,
             Self::CdataSection(inner) => inner as &dyn NodeInternalData,
@@ -68,7 +68,7 @@ impl NodeData {
         } 
     }
 
-    fn inner_mut(&mut self) -> &mut impl NodeInternalData {
+    fn inner_mut(&mut self) -> &mut dyn NodeInternalData {
         match self {
             Self::Attribute(inner) => inner as &mut dyn NodeInternalData,
             Self::CdataSection(inner) => inner as &mut dyn NodeInternalData,
@@ -81,7 +81,7 @@ impl NodeData {
         } 
     }
 
-    pub(crate) fn ptr(&self) -> *const impl NodeInternalData {
+    pub(crate) fn ptr(&self) -> *const dyn NodeInternalData {
         match self {
             Self::Attribute(inner) => inner as *const dyn NodeInternalData,
             Self::CdataSection(inner) => inner as *const dyn NodeInternalData,
@@ -105,7 +105,7 @@ impl NodeInternalData for NodeData {
     fn remove_child(&mut self, index:usize) -> Result<(), NodeError> {
         self.inner_mut().remove_child(index)
     }
-    fn set_children(&mut self, list:  &[impl IntoNode]) -> Result<(), NodeError>{
+    fn set_children(&mut self, list:  &[Node]) -> Result<(), NodeError>{
         self.inner_mut().set_children(list)
     }
 

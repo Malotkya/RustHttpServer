@@ -175,7 +175,7 @@ impl NodeInternalData for ElementData {
         }
     }
 
-    fn set_children(&mut self, list: &[impl IntoNode]) -> Result<(), NodeError> {
+    fn set_children(&mut self, list: &[Node]) -> Result<(), NodeError> {
         if self.is_void() {
             Err(NodeError::NoDescendents)
         } else {
