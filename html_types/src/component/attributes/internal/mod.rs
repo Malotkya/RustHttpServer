@@ -1,7 +1,5 @@
 use crate::component::node::{
-    Node,
-    NodeInternalData,
-    StaticName
+    DefaultParrentAccess, IntoNode, Node, NodeInternalData, StaticName
 };
 use super::types::SpaceSeperatedList;
 
@@ -14,12 +12,23 @@ pub use value::*;
 
 
 
-#[derive(Clone, PartialEq)]
+#[derive(PartialEq)]
 pub(crate) struct AttributeData {
-    namespace: Option<String>,
-    parrent: Node,
-    name: AttributeName,
-    value: AttributeValue
+    pub namespace: Option<String>,
+    pub parrent: Option<Node>,
+    pub name: AttributeName,
+    pub value: AttributeValue
+}
+
+impl Clone for AttributeData {
+    fn clone(&self) -> Self {
+        Self {
+            namespace: self.namespace.clone(),
+            parrent: None,
+            name: self.name.clone(),
+            value: self.value.clone()
+        }
+    }
 }
 
 impl AttributeData {
@@ -86,20 +95,11 @@ impl ToString for AttributeData {
 
 impl NodeInternalData for AttributeData {
     StaticName!("");
+    DefaultParrentAccess!();
 
     fn namespace(&self) -> Option<&str> {
         self.namespace.as_ref()
             .map(|s|s.as_str())
-    }
-
-    fn parrent(&self) -> Option<&Node> {
-        Some(&self.parrent)
-    }
-
-    fn set_parrent(&mut self, parrent: Option<&Node>) {
-        if let Some(new) = parrent {
-            self.parrent = new.clone()
-        }
     }
 }
 
