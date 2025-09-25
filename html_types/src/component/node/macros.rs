@@ -1,11 +1,7 @@
 macro_rules! DefaultChildrenAccess {
     () => {
-        fn children(&self) -> Result<&LinkedList<Node>, NodeError> {
-            Ok(&self.children)
-        }
-
-        fn children_mut(&mut self) -> Result<&mut LinkedList<Node>, NodeError> {
-            Ok(&mut self.children)
+        fn children(&self) -> $crate::component::ChildIterator {
+            $crate::component::ChildIterator::new(self.children.iter())
         }
 
         fn add_child(&mut self, child:Node, index: Option<usize>) -> Result<(), NodeError> {
@@ -20,26 +16,28 @@ macro_rules! DefaultChildrenAccess {
             Ok(())
         }
 
-        fn set_children(&mut self, list: LinkedList<Node>) -> Result<(), NodeError> {
-            self.children = list;
+        fn set_children(&mut self, list: &mut [Node]) -> Result<(), NodeError> {
+            self.children = self.children.iter()
+                .filter_map(|node|if node.is_visual_element(){
+                    None
+                } else {
+                    Some(node.clone())
+                }).collect();
+
+            self.children.append(&mut list.iter().map(|n|n.clone()).collect());
+
             Ok(())
         }
 
         fn remove_child(&mut self, index:usize) -> Result<(), NodeError> {
-            self.children.remove(index);
+            let mut tail = self.children.split_off(index);
+            tail.pop_back();
+            self.children.append(&mut tail);
             Ok(())
         }
-    };
-}
 
-macro_rules! DefaultAttributeAccess {
-    () => {
-        fn attributes(&self) -> Option<&Vec<AttributeItem>> {
-            Some(&self.attriubutes)
-        }
-
-        fn attributes_mut(&mut self) -> Option<&mut Vec<AttributeItem>> {
-            Some(&mut self.attriubutes)
+        fn attributes(&self) -> $crate::component::AttributeIterator {
+            $crate::component::AttributeIterator::new(self.children.iter())
         }
     };
 }
@@ -61,7 +59,7 @@ macro_rules! StaticName {
         StaticName!("");
     };
     ($name:literal) => {
-        fn name(&self) -> &str {
+        fn local_name(&self) -> &str {
             $name
         }
     };
@@ -70,7 +68,7 @@ macro_rules! StaticName {
 macro_rules! NodeType {
     (
         $node_type:path = $struct_name:ident(
-            $({ $($outer_impl_block:tt)* })?
+            $({ $($outer_impl_block:tt)* };)?
             $( $outer_trait_name:ident:{ $($outer_impl_trait_block:tt)* }; )*
         );
         $inner_name:ident { $($inner_struct_block:tt)* }:(
@@ -79,7 +77,6 @@ macro_rules! NodeType {
         )
         
     ) => { paste::paste!{
-
         pub(crate) struct [<$struct_name $inner_name>] {
             $($inner_struct_block)*
         }
@@ -97,10 +94,8 @@ macro_rules! NodeType {
         )*
 
         pub struct $struct_name (
-            pub(crate) std::rc::Rc<
-                std::cell::RefCell<
-                    [<$struct_name $inner_name>]
-                >
+            pub(crate) $crate::component::document::DocumentItemRef<
+                [<$struct_name $inner_name>]
             >
         );
 
@@ -118,7 +113,38 @@ macro_rules! NodeType {
 
         impl IntoNode for $struct_name {
             fn node(&self) -> Node {
-                Node($node_type(self.0.clone()))
+                Node(self.0.downgrade())
+            }
+        }
+
+        impl TryFrom<Node> for $struct_name {
+            type Error = &'static str;
+
+            fn try_from(value: Node) -> Result<Self, Self::Error> {
+                TryInto::<Self>::try_into(&value)
+            }
+        }
+
+        impl TryFrom<&Node> for $struct_name {
+            type Error = &'static str;
+
+            fn try_from(value: &Node) -> Result<Self, Self::Error> {
+                match value.0.deref() {
+                    $node_type(inner) => {
+                        value.0.item.inc();
+
+                        Ok(
+                            Self(
+                                $crate::component::document::DocumentItemRef::new (
+                                    value.0.doc.clone(),
+                                    value.0.item,
+                                    inner
+                                )
+                            )
+                        )
+                    },
+                    _ => Err("Unable to convert Node ot partular type!")
+                }
             }
         }
     }};
@@ -126,6 +152,5 @@ macro_rules! NodeType {
 
 pub(crate) use DefaultChildrenAccess;
 pub(crate) use DefaultParrentAccess;
-pub(crate) use DefaultAttributeAccess;
 pub(crate) use StaticName;
 pub(crate) use NodeType;
