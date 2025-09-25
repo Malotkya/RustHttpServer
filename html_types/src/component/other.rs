@@ -36,8 +36,8 @@ NodeType!(
 NodeType!(
     NodeData::DocumentFragment = DocumentFragment();
     Data{
-        parrent: Option<Node>,
-        children: LinkedList<Node>
+        pub parrent: Option<Node>,
+        pub children: LinkedList<Node>
     }: (
         NodeInternalData:{
             DefaultChildrenAccess!();
@@ -72,8 +72,8 @@ NodeType!(
 NodeType!(
     NodeData::CdataSection = CdataSection();
     Data{
-        parrent: Option<Node>,
-        children: LinkedList<Node>
+        pub parrent: Option<Node>,
+        pub children: LinkedList<Node>
     }:(
         NodeInternalData:{
             DefaultChildrenAccess!();
@@ -107,7 +107,7 @@ NodeType!(
         };
     );
     Data{
-        parrent: Option<Node>,
+        pub parrent: Option<Node>,
         pub value: String
     }:(
         NodeInternalData: {
@@ -151,7 +151,7 @@ NodeType!(
 NodeType!(
     NodeData::Comment = Comment();
     Data{
-        parrent: Option<Node>,
+        pub parrent: Option<Node>,
         pub value: String
     }:(
         NodeInternalData: {
