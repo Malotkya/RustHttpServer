@@ -1,12 +1,14 @@
-use std::{cell::RefCell, rc::Rc, collections::LinkedList};
+use std::{
+    collections::LinkedList,
+    ops::Deref
+};
 use super::{
     node::*,
-    attributes::{AttributeName, AttributeValue, AttributeItem},
-    element::ElementData
+    //element::ElementData,
 };
 
 NodeType!(
-    NodeInternal::DocumentType = DocumentType();
+    NodeData::DocumentType = DocumentType();
     Data{parrent: Option<Node>}:(
         NodeInternalData:{
             DefaultParrentAccess!();
@@ -27,7 +29,7 @@ NodeType!(
 );
 
 NodeType!(
-    NodeInternal::DocumentFragment = DocumentFragment();
+    NodeData::DocumentFragment = DocumentFragment();
     Data{
         parrent: Option<Node>,
         children: LinkedList<Node>
@@ -53,7 +55,7 @@ NodeType!(
 );
 
 NodeType!(
-    NodeInternal::CdataSection = CdataSection();
+    NodeData::CdataSection = CdataSection();
     Data{
         parrent: Option<Node>,
         children: LinkedList<Node>
@@ -72,31 +74,17 @@ NodeType!(
 );
 
 NodeType!(
-    NodeInternal::Text = Text(
+    NodeData::Text = Text(
         {
-            pub(crate) fn new(value:&str) -> Self {
-                Self(TextData::new(value, None))
+            fn value(&self) -> &str {
+                &self.0.value
             }
-
-            fn value(&self) -> String {
-                self.0.borrow().value.clone()
-            }
-        }
+        };
     );
     Data{
         parrent: Option<Node>,
         pub value: String
     }:(
-        {
-            pub(crate) fn new(data:&str, parrent: Option<&Node>) -> Rc<RefCell<Self>> {
-                Rc::new(RefCell::new(
-                    Self { 
-                        parrent: parrent.map(|n|n.node()),
-                        value: data.to_owned()
-                    }
-                ))
-            }
-        };
         NodeInternalData: {
             DefaultParrentAccess!();
             StaticName!();
@@ -106,26 +94,37 @@ NodeType!(
                 self.value == other.value
             }
         };
+        Clone: {
+            fn clone(&self) -> Self{
+                Self {
+                    parrent: None,
+                    value: self.value.clone()
+                }
+            }
+        };
     )
 );
 
-impl Into<ElementData> for &TextData {
+/*impl Into<ElementData> for &TextData {
     fn into(self) -> ElementData {
-        let mut list:LinkedList<Node> = LinkedList::new();
-        list.push_front(Text::new(&self.value).node());
-
-        ElementData {
+        let mut data = ElementData {
             name: AttributeName::Static(""),
             attributes: Vec::new(),
             parrent: self.parrent.as_ref()
                 .map(|n|n.node()),
-            children: list
-        }
+            children: LinkedList::new()
+        };
+
+        let mut text_clone = self.clone();
+        text_clone.parrent = Some(data);
+        data.children.push_back(text_clone);
+
+        data
     }
-}
+}*/
 
 NodeType!(
-    NodeInternal::Comment = Comment();
+    NodeData::Comment = Comment();
     Data{
         parrent: Option<Node>,
         pub value: String
@@ -137,52 +136,6 @@ NodeType!(
         PartialEq: {
             fn eq(&self, other: &Self) -> bool {
                 self.value == other.value
-            }
-        };
-    )
-);
-
-NodeType!(
-    NodeInternal::Attribute = Attribute({
-        pub(crate) fn new(value:&AttributeItem, parrent: Option<&impl IntoNode>) -> Self {
-            Self(
-                AttributeData::new(
-                    value.clone(),
-                    parrent.map(|n|n.node())
-                )
-            )
-        }
-    });
-    Data{
-        parrent: Option<Node>,
-        pub name: AttributeName,
-        pub value: AttributeValue
-    }:(
-        {
-            pub fn new(value: AttributeItem, parrent: Option<Node>) -> Rc<RefCell<Self>> {
-                Rc::new(
-                    RefCell::new(
-                        Self {
-                            parrent,
-                            name: value.0,
-                            value: value.1
-                        }
-                    )
-                )
-            }
-
-            pub fn item(&self) -> AttributeItem {
-                AttributeItem(self.name.clone(), self.value.clone())
-            }
-        };
-        NodeInternalData: {
-             DefaultParrentAccess!();
-            StaticName!();
-        };
-        PartialEq: {
-            fn eq(&self, other: &Self) -> bool {
-                self.name == other.name
-                    && self.value == other.value
             }
         };
     )
