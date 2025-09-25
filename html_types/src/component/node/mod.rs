@@ -1,12 +1,12 @@
-use std::{
-    collections::LinkedList,
-    cell::Ref
-};
-use crate::component::document::NodeDocumentItemRef;
-
+use std::collections::VecDeque;
 use super::{
     other::TextData,
-    document::DocumentItemRef
+    document::{
+        DocumentItemRef,
+        NodeDocumentItemRef,
+        InternalRef
+    },
+    NodeIterator,
 };
 
 
@@ -24,24 +24,7 @@ pub trait IntoNode {
 
 impl IntoNode for Node {
     fn node(&self) -> Node {
-        match &self.0 {
-            NodeInternal::Attribute(inner) =>
-                Self(NodeInternal::Attribute(inner.clone())),
-            NodeInternal::CdataSection(inner) =>
-                Self(NodeInternal::CdataSection(inner.clone())),
-            NodeInternal::Comment(inner) =>
-                Self(NodeInternal::Comment(inner.clone())),
-            NodeInternal::Document(inner) =>
-                Self(NodeInternal::Document(inner.clone())),
-            NodeInternal::DocumentFragment(inner) =>
-                Self(NodeInternal::DocumentFragment(inner.clone())),
-            NodeInternal::DocumentType(inner) =>
-                Self(NodeInternal::DocumentType(inner.clone())),
-            NodeInternal::Element(inner) =>
-                Self(NodeInternal::Element(inner.clone())),
-            NodeInternal::Text(inner) =>
-                Self(NodeInternal::Text(inner.clone())),
-        }
+        Node(self.0.clone())
     }
 }
 
@@ -54,11 +37,11 @@ impl<T: IntoNode> IntoNode for &T {
 //Internal Helper Fucntions
 impl Node {
     pub(crate) fn is_visual_element(&self) -> bool {
-        match self.0 {
-            NodeInternal::Element(_) => true,
-            NodeInternal::Text(_) => true,
-            NodeInternal::Document(_) => true,
-            NodeInternal::DocumentFragment(_) => true,
+        match &*self.0 {
+            NodeData::Element(_) => true,
+            NodeData::Text(_) => true,
+            NodeData::Document(_) => true,
+            NodeData::DocumentFragment(_) => true,
             _ => false
         }
     }
@@ -72,12 +55,8 @@ impl Node {
 impl Node {
     //ToDo: fn base_uri(&self) -> String;
 
-    pub fn child_nodes<'a>(&'a self) -> Ref<'a, NodeIterator<'a>> {
-        Ref::map(self.0.borrow(), |inner|{
-            &NodeIterator(
-                inner.children().ok().map(|list|list.iter())
-            )
-        })
+    pub fn child_nodes<'a>(&'a self) -> NodeIterator<'a> {
+        self.0.children().into()
     }
 
     pub fn is_connected(&self) -> bool {
@@ -86,28 +65,19 @@ impl Node {
     }
 
     pub fn first_child(&self) -> Option<Node> {
-        match self.0.borrow().children() {
-            Ok(list) => list.front().map(|n|n.node()),
-            Err(_) => None
-        }
+        self.child_nodes().next()
     }
 
     pub fn last_child(&self) -> Option<Node> {
-        match self.0.borrow().children() {
-            Ok(list) => list.iter().last().map(|n|n.node()),
-            Err(_) => None
-        }
+        self.child_nodes().last()
     }
 
     pub fn next_sibling(&self) -> Option<Node> {
-        if let Some(parrent) = self.0.borrow().parrent() {
-            if let Ok(list) = parrent.0.borrow().children() {
-                let mut it = list.iter();
-
-                while let Some(next) = it.next() {
-                    if self.is_same_node(next) {
-                        return it.next().map(|n|n.node())
-                    }
+        if let Some(parrent) = self.0.parrent() {
+            let mut it = parrent.child_nodes();
+            while let Some(next) =  it.next() {
+                if self.is_same_node(&next) {
+                    return it.next()
                 }
             }
         }
@@ -116,41 +86,39 @@ impl Node {
     }
 
     pub fn node_name(&self) -> String {
-        self.0.borrow().name().to_owned()
+        self.0.local_name().to_owned()
     }
 
     pub fn node_type(&self) -> NodeType {
-        match &self.0 {
-            NodeInternal::Element(_) => NodeType::ElementNode,
-            NodeInternal::Attribute(_) => NodeType::AttributeNode,
-            NodeInternal::Text(_) => NodeType::TextNode,
-            NodeInternal::CdataSection(_) => NodeType::CdataSectionNode,
+        match &*self.0 {
+            NodeData::Element(_) => NodeType::ElementNode,
+            NodeData::Attribute(_) => NodeType::AttributeNode,
+            NodeData::Text(_) => NodeType::TextNode,
+            NodeData::CdataSection(_) => NodeType::CdataSectionNode,
             //Self::ProcessingInstruction => NodeType::ProcessingInstructionNode,
-            NodeInternal::Comment(_) => NodeType::CommentNode,
-            NodeInternal::Document(_) => NodeType::DocumentNode,
-            NodeInternal::DocumentType(_) => NodeType::DocumentTypeNode,
-            NodeInternal::DocumentFragment(_) => NodeType::DocumentFragmentNode
+            NodeData::Comment(_) => NodeType::CommentNode,
+            NodeData::Document(_) => NodeType::DocumentNode,
+            NodeData::DocumentType(_) => NodeType::DocumentTypeNode,
+            NodeData::DocumentFragment(_) => NodeType::DocumentFragmentNode
         }
     }
 
     //ToDo:pub fn owner_document(&self) -> Option<&Document>;
 
     pub fn parrent(&self) -> Option<Node> {
-        self.0.borrow().parrent().map(|n|n.node())
+        self.0.parrent().map(|n|n.node())
     }
 
     pub fn previous_sibling(&self) -> Option<Node> {
-        if let Some(parrent) = self.0.borrow().parrent() {
-            if let Ok(list) = parrent.0.borrow().children() {
-                let mut prev = None;
-                let mut it = list.iter();
+        if let Some(parrent) = self.0.parrent() {
+            let mut prev = None;
+            let mut it = parrent.child_nodes();
 
-                while let Some(next) = it.next() {
-                    if self.is_same_node(next) {
-                        return prev
-                    } else {
-                        prev = Some(next.node())
-                    }
+            while let Some(next) =  it.next() {
+                if self.is_same_node(&next) {
+                    return prev;
+                } else {
+                    prev = Some(next)
                 }
             }
         }
@@ -159,60 +127,61 @@ impl Node {
     }
 
     pub fn get_text_content(&self) -> String {
-        match &self.0 {
-            NodeInternal::Text(inner) => inner.borrow().value.clone(),
-            NodeInternal::Comment(inner) => inner.borrow().value.clone(),
-            _ => if let Ok(inner) = self.0.borrow().children() {
-                inner.iter().map(|node|node.get_text_content())
-                    .collect::<Vec<String>>().join(" ")
-            } else {
-                String::new()
-            }
+        match &*self.0 {
+            NodeData::Text(inner) => inner.value.clone(),
+            NodeData::Comment(inner) => inner.value.clone(),
+            _ => self.child_nodes()
+                .map(|node|node.get_text_content())
+                .collect::<Vec<String>>()
+                .join(" ")
         }
     }
 
     pub fn set_text_content(&mut self, value: &str) -> Result<(), NodeError> {
-        match &self.0 {
-            NodeInternal::Text(inner) => {
-                inner.borrow_mut().value = value.to_owned();
+        match unsafe{ self.0.borrow_mut() } {
+            NodeData::Text(inner) => {
+                inner.value = value.to_owned();
                 Ok(())
             },
-            NodeInternal::Comment(inner) => {
-                inner.borrow_mut().value = value.to_owned();
+            NodeData::Comment(inner) => {
+                inner.value = value.to_owned();
                 Ok(())
             }
             _ => {
-                let mut list = LinkedList::new();
-                list.push_back(
-                    Node(NodeInternal::Text(
-                        TextData::new(value, Some(self))
-                    ))
-                );
-                self.0.borrow_mut().set_children(list)
+                let data = self.0.doc.create_text(TextData {
+                    parrent: None,
+                    value: value.to_owned()
+                });
+
+                unsafe {
+                    self.0.borrow_mut().set_children(&[Node(
+                        data.downgrade()
+                    )])
+                }
             }
         }
     }
 
     pub fn append_child<T: IntoNode>(&mut self, child:&T) -> Result<(), NodeError> {
-        let child = child.node();
+        let mut child = child.node();
 
         // Check if there is a child list
-        if self.0.borrow().is_void() {
-            return Err(NodeError::NoChildrenList)
+        if self.0.children().is_void() {
+            return Err(NodeError::NoDescendents)
         }
         
-        let mut child_inner = child.0.borrow_mut();
+        unsafe {
+            // Make sure to remove from previous location
+            if let Some(parrent) = child.0.parrent()
+                && let Some((mut parrent, index)) = find_child_helper(parrent, &child)? {
 
-        // Make sure to remove from previous location
-        if let Some(parrent) = child_inner.parrent()
-            && let Some((parrent, index)) = find_child_helper(parrent, &child)? {
+                parrent.0.borrow_mut().remove_child(index)?;
+            }
 
-            let mut inner = parrent.0.borrow_mut();
-            inner.remove_child(index)?;
+            child.0.borrow_mut().set_parrent(Some(self));
+            self.0.borrow_mut().add_child(child.node(), None)?;
         }
-
-        child_inner.set_parrent(Some(self));
-        self.0.borrow_mut().add_child(child.node(), None)?;
+        
 
         Ok(())
     }
@@ -236,37 +205,35 @@ impl Node {
 
     pub fn get_root_node(&self) -> Option<Node> {
         self.0.borrow().parrent().map(|n|{
-            match n.0 {
-                NodeInternal::Document(_) => Some(n.node()),
+            match &*n.0 {
+                NodeData::Document(_) => Some(n.node()),
                 _ => n.get_root_node()
             }
-        }).flatten()
+        }).flatten() 
     }
 
     pub fn has_child_nodes(&self) -> bool {
-        match self.0.borrow().children() {
-            Ok(list) => !list.is_empty(),
-            Err(_) => false
-        }
+        self.child_nodes().len() > 0
     }
 
     pub fn insert_before<T: IntoNode, Q: IntoNode>(&mut self, new_node:&T, reference:&Q) -> Result<(), NodeError> {
         let reference = reference.node();
 
         //Make sure refference is a child (Will fail if no list)
-        if let Some((parrent, index)) = find_child_helper(self, &reference)? {
-            let child = new_node.node();
-            let mut child_inner = child.0.borrow_mut();
+        if let Some((mut parrent, index)) = find_child_helper(self, &reference)? {
+            let mut child = new_node.node();
 
-            // Make sure to remove from previous location
-            if let Some(parrent) = child_inner.parrent()
-                && let Some((parrent, index)) = find_child_helper(parrent, &child)? {
+            unsafe {
+                // Make sure to remove from previous location
+                if let Some(parrent) = child.0.borrow().parrent()
+                    && let Some((mut parrent, index)) = find_child_helper(parrent, &child)? {
 
-                parrent.0.borrow_mut().remove_child(index)?;
+                    parrent.0.borrow_mut().remove_child(index)?;
+                }
+
+                child.0.borrow_mut().set_parrent(Some(&parrent));
+                parrent.0.borrow_mut().add_child(child.node(), Some(index))?;
             }
-
-            child_inner.set_parrent(Some(&parrent));
-            parrent.0.borrow_mut().add_child(child.node(), Some(index))?;
 
             Ok(())
         } else {
@@ -283,17 +250,14 @@ impl Node {
     }
 
     pub fn is_same_node<T: IntoNode>(&self, reference: &T) -> bool {
-        std::ptr::eq(
-            self.0.ptr_value(),
-            reference.node().0.ptr_value()
-        )
+        self.0.ptr() == reference.node().0.ptr()
     }
 
     //ToDo: fn normalize(&mut self);
 
     pub fn remove_child(&mut self, reference:&Node ) -> Result<(), NodeError>{
-        if let Some((parrent, index)) = find_child_helper(self, reference)? {
-            parrent.0.borrow_mut().remove_child(index)
+        if let Some((mut parrent, index)) = find_child_helper(self, reference)? {
+            unsafe{ parrent.0.borrow_mut().remove_child(index) }
         } else {
             Err(NodeError::NoParrent)
         }
@@ -304,16 +268,18 @@ impl Node {
 }
 
 fn find_child_helper(parrent: &Node, child:&Node) -> Result<Option<(Node, usize)>, NodeError> {
-    let inner = parrent.0.borrow();
-    let list = inner.children()?;
-
-    for (index, node) in list.iter().enumerate() {
+    let it = parrent.child_nodes().enumerate();
+    let mut list:VecDeque<Node> = VecDeque::with_capacity(it.len());
+    
+    for (index, node) in it {
         if node.is_same_node(child) {
             return Ok(Some((parrent.node(), index)));
+        } else {
+            list.push_back(node)
         }
     }
 
-    for node in list {
+    while let Some(node) = list.pop_front() {
         let value = find_child_helper(&node, child)?;
         if value.is_some() {
             return Ok(value);
@@ -333,7 +299,7 @@ impl std::fmt::Debug for NodeError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::NoParrent => write!(f, "Node does not have a parrent element to access!"),
-            Self::NoChildrenList => write!(f, "Node does not have the ability to take children!"),
+            Self::NoDescendents => write!(f, "Node does not have the ability to take descendents!"),
         }
     }
 }
