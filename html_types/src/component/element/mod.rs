@@ -14,106 +14,53 @@ use super::{
         types::SpaceSeperatedList,
         *
     },
+    document::DocumentItemRef,
     node::*,
-    other::{DocumentFragment, Attribute, Text}
+    other::{DocumentFragment, Text}
 };
 
+mod internal;
+pub use internal::*;
 //mod types;
 //mod macros;
 //pub(crate) use macros::BuildHtmlElement;
 
-pub struct ElementData {
-    pub(crate) name: AttributeName,
-    pub(crate) attributes: Vec<AttributeItem>,
-    pub(crate) parrent: Option<Node>,
-    pub(crate) children: LinkedList<Node>
-}
 
-impl ElementData {
-    fn class(&mut self) -> &mut SpaceSeperatedList {
-        let mut pos:i64 = -1;
-        for (index, att) in self.attributes.iter().enumerate() {
-            if att.key() == "class" {
-                pos = index as i64;
-                break;
-            }
-        }
-
-        if pos < 0 {
-            pos = self.attributes.len() as i64;
-            self.attributes.push(AttributeItem(
-                AttributeName::Static("class"),
-                AttributeValue::ClassList(SpaceSeperatedList::new())
-            ));
-        }
-
-        self.attributes.iter_mut().nth(pos as usize).unwrap().coarse_list()
-    }
-}
-
-impl PartialEq for ElementData {
-    fn eq(&self, other: &Self) -> bool {
-        self.name == other.name && self.attributes == other.attributes
-            && self.children == other.children
-    }
-}
-
-impl NodeInternalData for ElementData {
-    DefaultParrentAccess!();
-
-    fn name(&self) -> &str {
-        self.name.value()
-    }
-
-    fn is_void(&self) -> bool {
-        match self.name.value() {
-            "area" | "base" | "br" | "col" |
-            "embed" | "hr" | "img" | "input" | 
-            "link" | "meta" | "param" | "source" | 
-            "track" | "wbr" => true,
-            _ => false
-        }
-    }
-
-    fn children(&self) -> Result<&LinkedList<Node>, NodeError> {
-        if self.is_void() {
-            Err(NodeError::NoChildrenList)
-        } else {
-            Ok(&self.children)
-        }
-    }
-
-    fn add_child(&mut self, child:Node, index: Option<usize>) -> Result<(), NodeError> {
-        if self.is_void() {
-            Err(NodeError::NoChildrenList)
-        } else {
-            if let Some(index) = index {
-                let mut tail = self.children.split_off(index);
-                self.children.push_back(child);
-                self.children.append(&mut tail);
-            } else {
-                self.children.push_back(child);
-            }
-
-            Ok(())
-        }
-    }
-
-    fn set_children(&mut self, list: LinkedList<Node>) -> Result<(), NodeError> {
-        if self.is_void() {
-            Err(NodeError::NoChildrenList)
-        } else {
-            self.children = list;
-            Ok(())
-        }
-    }
-}
-
-pub struct Element(pub(crate) Rc<RefCell<ElementData>>);
+pub struct Element(pub(crate) DocumentItemRef<ElementData>);
 
 impl IntoNode for Element {
     fn node(&self) -> Node {
-        Node(NodeInternal::Element(self.0.clone()))
+        Node(
+            self.0.downgrade()
+        )
+    }
+}
+
+impl TryFrom<Node> for Element {
+    type Error = &'static str;
+
+    fn try_from(value: Node) -> Result<Self, Self::Error> {
+        TryInto::<Self>::try_into(&value)
+    }
+}
+
+impl TryFrom<&Node> for Element {
+    type Error = &'static str;
+    fn try_from(value: &Node) -> Result<Self, Self::Error> {
+        match &*value.0 {
+            NodeData::Element(inner) => Ok(Element(inner.clone())),
+            NodeData::Text(inner) => {
+                Ok(Element(Rc::new(RefCell::new(
+                    (&*inner.borrow()).into()
+                ))))
+            },
+            NodeData::Document(inner) => {
+                Ok(Element(Rc::new(RefCell::new(
+                    (&*inner.borrow()).into()
+                ))))
+            }
+            _ => Err("Unable to convert to Element!")
+        }
     }
 }
 
@@ -365,14 +312,7 @@ impl Element {
     //ToDo:pub fn get_animations(&self) -> Animations;
 
     pub fn get_attribute(&self, name:&str) -> Option<AttributeValue> {
-        let interanl = self.0.borrow();
-        for att in &interanl.attributes {
-            if att.key() == name {
-                return Some(att.value().clone())
-            }
-        }
-
-        None
+        self.0.get_attribute(name, None).map(|atr|atr.value().clone())
     }
 
     pub fn get_attribute_names(&self) -> Vec<String> {
@@ -504,6 +444,10 @@ impl Element {
         new_list.append(&mut inner.children);
         inner.children = new_list
     }
+
+    pub fn set_attribute<T:ToAttributeValue>(&mut self, name:&str, value:T) -> Option<AttributeValue> {
+        self.0.set_attribute(name, None, value)
+    }
 }
 
 
@@ -526,19 +470,7 @@ impl Element {
     fn scroll_into_view(&self);
     fn scroll_into_view_if_needed(&self);
     fn scroll_to(&self);
-    pub fn set_attribute<T:$crate::component::attributes::ToAttributeValue>(&mut self, name:&str, value:T) -> Option<$crate::component::AttributeValue> {
-            let mut interanl = self.0.borrow_mut();
-            
-            for att in &mut interanl.attributes {
-                if att.key() ==  name {
-                    return Some(
-                        att.set_value(value)
-                    )
-                }
-            }
-
-            None
-        }
+    
     fn set_attribute_ns(&mut self, namespace:&str, name:&str, value:ToAttribute) -> Option<Attribute>;
     fn set_pointer_capture(&self);
     pub fn toggle_attribute(&mut self, name:&str, value:Option<bool>) -> Option<$crate::component::AttributeValue> {
