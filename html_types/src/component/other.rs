@@ -14,6 +14,11 @@ NodeType!(
             DefaultParrentAccess!();
             StaticName!();
         };
+        Clone: {
+            fn clone(&self) -> Self {
+                Self { parrent: None }
+            }
+        };
         PartialEq: {
             fn eq(&self, other: &Self) -> bool {
                 if let Some(lhs) = &self.parrent
@@ -38,6 +43,16 @@ NodeType!(
             DefaultChildrenAccess!();
             DefaultParrentAccess!();
             StaticName!();
+        };
+        Clone: {
+            fn clone(&self) -> Self {
+                Self {
+                    parrent: None,
+                    children: self.children.iter()
+                        .map(|n|n.node())
+                        .collect()
+                }
+            }
         };
         PartialEq: {
             fn eq(&self, other: &Self) -> bool {
@@ -64,6 +79,16 @@ NodeType!(
             DefaultChildrenAccess!();
             DefaultParrentAccess!();
             StaticName!();
+        };
+        Clone: {
+            fn clone(&self) -> Self {
+                Self {
+                    parrent: None,
+                    children: self.children.iter()
+                        .map(|n|n.node())
+                        .collect()
+                }
+            }
         };
         PartialEq: {
             fn eq(&self, other: &Self) -> bool {
@@ -132,6 +157,14 @@ NodeType!(
         NodeInternalData: {
             DefaultParrentAccess!();
             StaticName!();
+        };
+        Clone: {
+            fn clone(&self) -> Self{
+                Self {
+                    parrent: None,
+                    value: self.value.clone()
+                }
+            }
         };
         PartialEq: {
             fn eq(&self, other: &Self) -> bool {
