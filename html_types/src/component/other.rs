@@ -1,10 +1,6 @@
-use std::{
-    collections::LinkedList,
-    ops::Deref
-};
+use std::collections::LinkedList;
 use super::{
-    node::*,
-    //element::ElementData,
+    node::*
 };
 
 NodeType!(
@@ -102,7 +98,7 @@ NodeType!(
     NodeData::Text = Text(
         {
             fn value(&self) -> &str {
-                &self.0.value
+                unsafe{ &(*(self.1)).value }
             }
         };
     );
@@ -129,24 +125,6 @@ NodeType!(
         };
     )
 );
-
-/*impl Into<ElementData> for &TextData {
-    fn into(self) -> ElementData {
-        let mut data = ElementData {
-            name: AttributeName::Static(""),
-            attributes: Vec::new(),
-            parrent: self.parrent.as_ref()
-                .map(|n|n.node()),
-            children: LinkedList::new()
-        };
-
-        let mut text_clone = self.clone();
-        text_clone.parrent = Some(data);
-        data.children.push_back(text_clone);
-
-        data
-    }
-}*/
 
 NodeType!(
     NodeData::Comment = Comment();

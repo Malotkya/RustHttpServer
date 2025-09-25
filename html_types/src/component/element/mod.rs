@@ -8,7 +8,6 @@ use std::{
 };
 
 use super::{
-    //node::*,
     attributes::{
         aria::MakeAriaAttributes,
         types::SpaceSeperatedList,
@@ -26,41 +25,129 @@ pub use internal::*;
 //pub(crate) use macros::BuildHtmlElement;
 
 
-pub struct Element(pub(crate) DocumentItemRef<ElementData>);
+pub struct Element(pub(crate) DocumentItemRef);
+
+impl Element {
+    fn get_attribute_helper(&self, name: &str, namespace:Option<&str>) -> Option<Attribute> {
+        self.0.inner().map(|children|{
+            for node in children {
+                if let Ok(atr) = TryInto::<Attribute>::try_into(node) {
+                    if atr.0.namespace() == namespace && atr.0.local_name() == name {
+                        return Some(atr)
+                    }
+                }
+            }
+
+            None
+        }).flatten()
+    }
+
+    fn remove_attribute_helper(&mut self, name:&str, namespace:Option<&str>) {
+        if let Some(children) = unsafe{ self.0.borrow_mut() }.inner_mut() {
+             let mut pos:Option<usize> = None;
+
+            for (index, node ) in children.iter_mut().enumerate() {
+                if let Ok(atr) = TryInto::<Attribute>::try_into(&*node) {
+                    if atr.0.namespace() == namespace && atr.0.local_name() == name {
+                        pos = Some(index);
+                        break;
+                    }
+                }
+            }
+
+            if let Some(index) = pos {
+                let mut tail = children.split_off(index);
+                tail.pop_front();
+                children.append(&mut tail);
+            }
+        }
+    }
+
+    fn toggle_attribute_helper(&mut self, name:&str, namespace:Option<&str>, value:bool) {
+        if value {
+            self.set_attribute_helper(name, namespace, true);
+        } else {
+            self.remove_attribute_helper(name, namespace);
+        }
+    }
+
+    fn set_attribute_helper<T: ToAttributeValue>(&mut self, name:&str, namespace:Option<&str>, value:T) -> Option<AttributeValue>{
+        if let Some(mut atr) = self.get_attribute_helper(name, namespace) {
+           let old = unsafe {
+                (*atr.1).set_value(value)
+           };
+           Some(old)
+        } else {
+            let atr = self.0.doc.create_attribute(AttributeData{
+                namespace: namespace.map(|s|s.to_string()),
+                name: AttributeName::Static("class"),
+                parrent: Some(Node(self.0.clone())),
+                value: value.into_value()
+            });
+
+            unsafe {
+                if let Some(list) = self.0.borrow_mut().inner_mut() {
+                    list.push_back(atr.node());
+                }
+            }
+
+            None
+        }
+    }
+
+    fn class(&mut self) -> *mut SpaceSeperatedList {
+        if let Some(mut value) = self.get_attribute("class", None) {
+            unsafe{ value.0.borrow_mut().coarse_list() as *mut SpaceSeperatedList }
+        } else {
+            let mut attribute = Attribute(self.doc.create_attribute(AttributeData{
+                namespace: None,
+                name: AttributeName::Static("class"),
+                parrent: Some(Node::new_helper(self)),
+                value: AttributeValue::ClassList(SpaceSeperatedList::new())
+            }));
+
+            unsafe{
+                let ptr = attribute.0.borrow_mut().coarse_list() as *mut SpaceSeperatedList;
+                self.borrow_mut().children.push_back(attribute.node());
+                ptr
+            }
+        }
+    }
+}
 
 impl IntoNode for Element {
     fn node(&self) -> Node {
         Node(
-            self.0.downgrade()
+            self.0.clone()
         )
     }
 }
+
+fn perform_try_clone(value:&Node, inc:bool) -> Result<Element, &'static str> {
+    if !value.is_visual_element() {
+        Err("Unable to convert to Element!")
+    } else {
+        if inc {
+            value.0.item.inc();
+        }
+
+        Ok(Element(value.0.clone()))
+    }
+}  
 
 impl TryFrom<Node> for Element {
     type Error = &'static str;
 
     fn try_from(value: Node) -> Result<Self, Self::Error> {
-        TryInto::<Self>::try_into(&value)
+        perform_try_clone(&value, false)
     }
 }
 
 impl TryFrom<&Node> for Element {
     type Error = &'static str;
+
     fn try_from(value: &Node) -> Result<Self, Self::Error> {
-        match &*value.0 {
-            NodeData::Element(inner) => Ok(Element(inner.clone())),
-            NodeData::Text(inner) => {
-                Ok(Element(Rc::new(RefCell::new(
-                    (&*inner.borrow()).into()
-                ))))
-            },
-            NodeData::Document(inner) => {
-                Ok(Element(Rc::new(RefCell::new(
-                    (&*inner.borrow()).into()
-                ))))
-            }
-            _ => Err("Unable to convert to Element!")
-        }
+        perform_try_clone(value, true)
     }
 }
 
@@ -312,7 +399,7 @@ impl Element {
     //ToDo:pub fn get_animations(&self) -> Animations;
 
     pub fn get_attribute(&self, name:&str) -> Option<AttributeValue> {
-        self.0.get_attribute(name, None).map(|atr|atr.value().clone())
+        self.get_attribute_helper(name, None).map(|atr|atr.value().clone())
     }
 
     pub fn get_attribute_names(&self) -> Vec<String> {
@@ -445,9 +532,7 @@ impl Element {
         inner.children = new_list
     }
 
-    pub fn set_attribute<T:ToAttributeValue>(&mut self, name:&str, value:T) -> Option<AttributeValue> {
-        self.0.set_attribute(name, None, value)
-    }
+    
 }
 
 
@@ -470,7 +555,9 @@ impl Element {
     fn scroll_into_view(&self);
     fn scroll_into_view_if_needed(&self);
     fn scroll_to(&self);
-    
+    pub fn set_attribute<T:ToAttributeValue>(&mut self, name:&str, value:T) -> Option<AttributeValue> {
+        self.0.set_attribute(name, None, value)
+    }
     fn set_attribute_ns(&mut self, namespace:&str, name:&str, value:ToAttribute) -> Option<Attribute>;
     fn set_pointer_capture(&self);
     pub fn toggle_attribute(&mut self, name:&str, value:Option<bool>) -> Option<$crate::component::AttributeValue> {

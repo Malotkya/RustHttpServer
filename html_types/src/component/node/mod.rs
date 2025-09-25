@@ -1,10 +1,7 @@
 use std::collections::VecDeque;
 use super::{
-    other::TextData,
     document::{
-        DocumentItemRef,
-        NodeDocumentItemRef,
-        InternalRef
+        DocumentItemRef
     },
     NodeIterator,
 };
@@ -16,7 +13,7 @@ mod macros;
 pub(crate) use macros::*;
 
 #[derive(PartialEq)]
-pub struct Node(pub(crate) NodeDocumentItemRef);
+pub struct Node(pub(crate) DocumentItemRef);
 
 pub trait IntoNode {
     fn node(&self) -> Node;
@@ -37,17 +34,13 @@ impl<T: IntoNode> IntoNode for &T {
 //Internal Helper Fucntions
 impl Node {
     pub(crate) fn is_visual_element(&self) -> bool {
-        match &*self.0 {
+        match self.0.node_data() {
             NodeData::Element(_) => true,
             NodeData::Text(_) => true,
             NodeData::Document(_) => true,
             NodeData::DocumentFragment(_) => true,
             _ => false
         }
-    }
-
-    pub(crate) fn new_helper(inner: &DocumentItemRef<impl NodeInternalData>) -> Self {
-        Self(inner.downgrade())
     }
 }
 
@@ -90,7 +83,7 @@ impl Node {
     }
 
     pub fn node_type(&self) -> NodeType {
-        match &*self.0 {
+        match self.0.node_data() {
             NodeData::Element(_) => NodeType::ElementNode,
             NodeData::Attribute(_) => NodeType::AttributeNode,
             NodeData::Text(_) => NodeType::TextNode,
@@ -127,7 +120,7 @@ impl Node {
     }
 
     pub fn get_text_content(&self) -> String {
-        match &*self.0 {
+        match self.0.node_data() {
             NodeData::Text(inner) => inner.value.clone(),
             NodeData::Comment(inner) => inner.value.clone(),
             _ => self.child_nodes()
@@ -138,7 +131,7 @@ impl Node {
     }
 
     pub fn set_text_content(&mut self, value: &str) -> Result<(), NodeError> {
-        match unsafe{ self.0.borrow_mut() } {
+        match self.0.node_data_mut() {
             NodeData::Text(inner) => {
                 inner.value = value.to_owned();
                 Ok(())
@@ -148,15 +141,11 @@ impl Node {
                 Ok(())
             }
             _ => {
-                let data = self.0.doc.create_text(TextData {
-                    parrent: None,
-                    value: value.to_owned()
-                });
+                let mut data = self.0.doc.create_text_node(value);
+                unsafe{ data.0.borrow_mut().set_parrent(Some(self)) };
 
                 unsafe {
-                    self.0.borrow_mut().set_children(&[Node(
-                        data.downgrade()
-                    )])
+                    self.0.borrow_mut().set_children(&[data.node()])
                 }
             }
         }
@@ -205,7 +194,7 @@ impl Node {
 
     pub fn get_root_node(&self) -> Option<Node> {
         self.0.borrow().parrent().map(|n|{
-            match &*n.0 {
+            match n.0.node_data() {
                 NodeData::Document(_) => Some(n.node()),
                 _ => n.get_root_node()
             }
@@ -250,7 +239,7 @@ impl Node {
     }
 
     pub fn is_same_node<T: IntoNode>(&self, reference: &T) -> bool {
-        self.0.ptr() == reference.node().0.ptr()
+        self.0 == reference.node().0
     }
 
     //ToDo: fn normalize(&mut self);

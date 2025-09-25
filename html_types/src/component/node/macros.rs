@@ -44,6 +44,14 @@ macro_rules! DefaultChildrenAccess {
         fn attributes(&self) -> $crate::component::AttributeIterator {
             $crate::component::AttributeIterator::new(self.children.iter())
         }
+
+        fn inner(&self) -> Option<&LinkedList<Node>> {
+            Some(&self.children)
+        }
+
+        fn inner_mut(&mut self) -> Option<&mut LinkedList<Node>> {
+            Some(&mut self.children)
+        }
     };
 }
 
@@ -99,9 +107,8 @@ macro_rules! NodeType {
         )*
 
         pub struct $struct_name (
-            pub(crate) $crate::component::document::DocumentItemRef<
-                [<$struct_name $inner_name>]
-            >
+            pub(crate) $crate::component::document::DocumentItemRef,
+            pub(crate) *const [<$struct_name $inner_name>]
         );
 
         $(
@@ -118,7 +125,7 @@ macro_rules! NodeType {
 
         impl IntoNode for $struct_name {
             fn node(&self) -> Node {
-                Node(self.0.downgrade())
+                Node(self.0.clone())
             }
         }
 
@@ -126,7 +133,18 @@ macro_rules! NodeType {
             type Error = &'static str;
 
             fn try_from(value: Node) -> Result<Self, Self::Error> {
-                TryInto::<Self>::try_into(&value)
+                match value.0.node_data() {
+                    $node_type(inner) => {
+
+                        Ok(
+                            Self(
+                                value.0.clone(),
+                                inner as *const [<$struct_name $inner_name>]
+                            )
+                        )
+                    },
+                    _ => Err("Unable to convert Node to partular type!")
+                }
             }
         }
 
@@ -134,21 +152,18 @@ macro_rules! NodeType {
             type Error = &'static str;
 
             fn try_from(value: &Node) -> Result<Self, Self::Error> {
-                match value.0.deref() {
+                match value.0.node_data() {
                     $node_type(inner) => {
                         value.0.item.inc();
 
                         Ok(
                             Self(
-                                $crate::component::document::DocumentItemRef::new (
-                                    value.0.doc.clone(),
-                                    value.0.item,
-                                    inner
-                                )
+                                value.0.clone(),
+                                inner as *const [<$struct_name $inner_name>]
                             )
                         )
                     },
-                    _ => Err("Unable to convert Node ot partular type!")
+                    _ => Err("Unable to convert Node to partular type!")
                 }
             }
         }

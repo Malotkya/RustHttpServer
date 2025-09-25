@@ -1,9 +1,8 @@
 use std::{
-    collections::linked_list::Iter,
-    rc::Rc
+    collections::linked_list::Iter
 };
 use crate::component::{
-    document::{DocumentData, NodeDocumentItemRef},
+    document::{Document, DocumentItemRef},
     element::Element,
     attributes::Attribute,
     node::{
@@ -13,7 +12,7 @@ use crate::component::{
 };
 
 pub(crate) enum IteratorType<'d> {
-    Document(Iter<'d, (usize, usize)>, Rc<DocumentData>),
+    Document(Iter<'d, (usize, usize)>, Document),
     Node(Iter<'d, Node>),
     None
 }
@@ -33,6 +32,22 @@ impl<'d> InternalIterator<'d> {
     fn is_void(&self) -> bool {
         self.0.is_none()
     }
+
+    pub fn empty() -> Self {
+        Self(IteratorType::None)
+    }
+
+    pub(crate) fn doc(it: Iter<'d, (usize, usize)>, doc:&Document) -> Self {
+        InternalIterator(
+            IteratorType::Document(it, doc.clone())
+        )
+    }
+
+    pub(crate) fn new(it: Iter<'d, Node>) -> Self {
+        InternalIterator(
+            IteratorType::Node(it)
+        )
+    }
 }
 
 impl<'d> Iterator for InternalIterator<'d> {
@@ -42,11 +57,8 @@ impl<'d> Iterator for InternalIterator<'d> {
         match &mut self.0 {
             IteratorType::Document(it, doc) => 
                 it.next().map(|(outer, inner)|{
-                    doc.all_nodes.get(*outer, *inner).map(|item|{
-                        Node(NodeDocumentItemRef::new(
-                            doc.clone(),
-                            item
-                        ))
+                    doc.0.all_nodes.get(*outer, *inner).map(|item|{
+                        item.node(doc)
                     })
                 }).flatten(),
             IteratorType::Node(it) => {
@@ -62,9 +74,9 @@ impl<'d> DoubleEndedIterator for InternalIterator<'d> {
         match &mut self.0 {
             IteratorType::Document(it, doc) => 
                 it.next_back().map(|(outer, inner)|{
-                    doc.all_nodes.get(*outer, *inner).map(|item|{
-                        Node(NodeDocumentItemRef::new(
-                            doc.clone(),
+                    doc.0.all_nodes.get(*outer, *inner).map(|item|{
+                        Node(DocumentItemRef::new(
+                            &doc,
                             item
                         ))
                     })
@@ -92,9 +104,9 @@ macro_rules! BuildIterator {
         pub struct $name<'d>(InternalIterator<'d>);
 
         impl<'d> $name<'d> {
-            pub(crate) fn doc(it: Iter<'d, (usize, usize)>, doc:Rc<DocumentData>) -> Self {
+            pub(crate) fn doc(it: Iter<'d, (usize, usize)>, doc:&Document) -> Self {
                 Self(InternalIterator(
-                    IteratorType::Document(it, doc)
+                    IteratorType::Document(it, doc.clone())
                 ))
             }
 

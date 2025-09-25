@@ -1,15 +1,12 @@
-use std::rc::Rc;
+use std::{
+    rc::Rc,
+    collections::LinkedList
+};
 use crate::component::{
-    attributes::AttributeData,
-    document::DocumentData,
-    element::ElementData,
-    node::{
+    attributes::AttributeData, document::DocumentData, element::ElementData, node::{
         Node,
         NodeError
-    },
-    other::*,
-    ChildIterator,
-    AttributeIterator
+    }, other::*, AttributeIterator, ChildIterator
 };
 
 #[allow(unused_variables)]
@@ -31,10 +28,22 @@ pub trait NodeInternalData {
         AttributeIterator::empty()
     }
 
+    fn is_void(&self) -> bool {
+        self.children().is_void()
+    }
+
     fn namespace(&self) -> Option<&str> {
         None
     }
     fn local_name(&self) -> &str;
+
+    fn inner(&self) -> Option<&LinkedList<Node>> {
+        None
+    }
+
+    fn inner_mut(&mut self) -> Option<&mut LinkedList<Node>> {
+        None
+    }
     
     fn parrent(&self) -> Option<&Node>;
     fn set_parrent(&mut self, parrent: Option<&Node>);
@@ -54,7 +63,7 @@ pub(crate) enum NodeData {
 }
 
 impl NodeData {
-    fn inner(&self) -> &dyn NodeInternalData {
+    pub(crate) fn inner(&self) -> &dyn NodeInternalData {
         match self {
             Self::Attribute(inner) => inner as &dyn NodeInternalData,
             Self::CdataSection(inner) => inner as &dyn NodeInternalData,
@@ -67,7 +76,7 @@ impl NodeData {
         } 
     }
 
-    fn inner_mut(&mut self) -> &mut dyn NodeInternalData {
+    pub(crate) fn inner_mut(&mut self) -> &mut dyn NodeInternalData {
         match self {
             Self::Attribute(inner) => inner as &mut dyn NodeInternalData,
             Self::CdataSection(inner) => inner as &mut dyn NodeInternalData,
@@ -91,39 +100,5 @@ impl NodeData {
             Self::Element(inner) => inner as *const dyn NodeInternalData,
             Self::Text(inner) => inner as *const dyn NodeInternalData,
         } 
-    }
-}
-
-impl NodeInternalData for NodeData {
-    fn children(&self) -> ChildIterator {
-        self.inner().children()
-    }
-    fn add_child(&mut self, child:Node, index: Option<usize>) -> Result<(), NodeError>{
-        self.inner_mut().add_child(child, index)
-    }
-    fn remove_child(&mut self, index:usize) -> Result<(), NodeError> {
-        self.inner_mut().remove_child(index)
-    }
-    fn set_children(&mut self, list:  &[Node]) -> Result<(), NodeError>{
-        self.inner_mut().set_children(list)
-    }
-
-    fn attributes(&self) -> AttributeIterator {
-        self.inner().attributes()
-    }
-
-    fn namespace(&self) -> Option<&str> {
-        self.inner().namespace()
-    }
-    fn local_name(&self) -> &str {
-        self.inner().local_name()
-    }
-    
-    fn parrent(&self) -> Option<&Node>{
-        self.inner().parrent()
-    }
-
-    fn set_parrent(&mut self, parrent: Option<&Node>){
-        self.inner_mut().set_parrent(parrent);
     }
 }

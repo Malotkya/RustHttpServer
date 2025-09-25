@@ -1,4 +1,7 @@
-use crate::component::{document::InternalRef, node::NodeData};
+use crate::component::{
+    document::{DocumentItemRef, Document},
+    node::{Node, NodeData}
+};
 use std::{
     collections::LinkedList
 };
@@ -8,6 +11,24 @@ const SECTION_SIZE:usize = 1000;
 pub(crate) struct ListItem {
     pub(crate) data: NodeData,
     count: usize
+}
+
+impl PartialEq for ListItem {
+    fn eq(&self, other: &Self) -> bool {
+        std::ptr::eq(
+            self as *const Self,
+            other as *const Self
+        )
+    }
+}
+
+impl PartialEq<*mut ListItem> for &ListItem {
+    fn eq(&self, other: &*mut ListItem) -> bool {
+        std::ptr::eq(
+            (*self) as *const ListItem,
+            (*other) as *const ListItem
+        )
+    }
 }
 
 impl ListItem {
@@ -32,8 +53,11 @@ impl ListItem {
         }
     }
 
-    pub fn ptr(&self) -> usize {
-        self as *const Self as usize
+    pub fn node(&self, doc:&Document) -> Node {
+        Node(DocumentItemRef::new(
+            doc,
+            self,
+        ))
     }
 }
 
@@ -63,10 +87,10 @@ impl NodeArray {
         list.back().unwrap().last().unwrap() as *const ListItem as *mut ListItem
     }
 
-    pub fn find(&self, value:impl InternalRef) -> Option<(usize, usize)> {
+    pub fn find(&self, value:DocumentItemRef) -> Option<(usize, usize)> {
         for (outer, section) in self.0.iter().enumerate() {
             for (inner, item) in section.iter().enumerate() {
-                if item.ptr() == value.ptr() {
+                if item == value.item {
                     return Some((outer, inner))
                 }
             }
