@@ -73,20 +73,20 @@ impl PartialEq for DocumentData {
     }
 }*/
 
-impl NodeInternalData for DocumentData {
+impl NodeInternalData for Rc<DocumentData> {
     StaticName!("html");
 
     fn children(&self) -> ChildIterator {
         ChildIterator::doc(
             self.children.iter(),
-            self
+            self.clone()
         )
     }
 
     fn attributes(&self) -> AttributeIterator {
         AttributeIterator::doc(
             self.children.iter(),
-            self
+            self.clone()
         )
     }
     
@@ -122,6 +122,14 @@ impl<T:NodeInternalData + Sized> DocumentItemRef<T> {
             item: self.item,
             data: data as *mut NodeData
         }
+    }
+}
+
+impl<T:NodeInternalData + Sized> Deref for DocumentItemRef<T> {
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        unsafe{ & (*self.data) }
     }
 }
 
