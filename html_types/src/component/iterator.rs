@@ -2,7 +2,7 @@ use std::{
     collections::linked_list::Iter
 };
 use crate::component::{
-    document::{Document, DocumentItemRef},
+    document::{Document},
     element::Element,
     attributes::Attribute,
     node::{
@@ -11,6 +11,7 @@ use crate::component::{
     }
 };
 
+#[derive(Clone)]
 pub(crate) enum IteratorType<'d> {
     Document(Iter<'d, (usize, usize)>, Document),
     Node(Iter<'d, Node>),
@@ -26,6 +27,7 @@ impl<'d> IteratorType<'d> {
     }
 }
 
+#[derive(Clone)]
 pub(crate) struct InternalIterator<'d>(IteratorType<'d>);
 
 impl<'d> InternalIterator<'d> {
@@ -58,11 +60,11 @@ impl<'d> Iterator for InternalIterator<'d> {
             IteratorType::Document(it, doc) => 
                 it.next().map(|(outer, inner)|{
                     doc.0.all_nodes.get(*outer, *inner).map(|item|{
-                        item.node(doc)
+                        item.node(&doc)
                     })
                 }).flatten(),
             IteratorType::Node(it) => {
-                it.next().map(|node|node.node())
+                it.next().map(|n|n.node())
             },
             IteratorType::None => None
         }
@@ -75,14 +77,11 @@ impl<'d> DoubleEndedIterator for InternalIterator<'d> {
             IteratorType::Document(it, doc) => 
                 it.next_back().map(|(outer, inner)|{
                     doc.0.all_nodes.get(*outer, *inner).map(|item|{
-                        Node(DocumentItemRef::new(
-                            &doc,
-                            item
-                        ))
+                        item.node(&doc)
                     })
                 }).flatten(),
             IteratorType::Node(it) => {
-                it.next_back().map(|node|node.node())
+                it.next_back().map(|n|n.node())
             },
             IteratorType::None => None
         }
@@ -100,7 +99,7 @@ impl<'d> ExactSizeIterator for InternalIterator<'d> {
 }
 
 macro_rules! BuildIterator {
-    ($name:ident($type:path)=$convert:expr) => {
+    ($name:ident($type:ty)=$convert:expr) => {
         pub struct $name<'d>(InternalIterator<'d>);
 
         impl<'d> $name<'d> {
@@ -159,7 +158,7 @@ macro_rules! BuildIterator {
     };
 }
 
-BuildIterator!(NodeIterator(Node)=|n:Node| -> Option<Node>{
+BuildIterator!(NodeIterator(Node)=|n: Node| -> Option<Node>{
     if n.is_visual_element() {
         Some(n)
     } else {
@@ -176,7 +175,29 @@ impl<'a> Into<NodeIterator<'a>> for ChildIterator<'a> {
 BuildIterator!(ChildIterator(Element)=|n:Node| -> Option<Element>{
     TryInto::<Element>::try_into(n).ok()
 });
+
+impl<'a> Into<ChildIterator<'a>> for NodeIterator<'a> {
+    fn into(self) -> ChildIterator<'a> {
+        ChildIterator(self.0)
+    }
+}
+
+impl<'a> Clone for ChildIterator<'a> {
+    fn clone(&self) -> Self {
+        Self(
+            self.0.clone()
+        )
+    }
+}
+
 BuildIterator!(AttributeIterator(Attribute)=|n:Node| -> Option<Attribute> {
     TryInto::<Attribute>::try_into(n).ok()
 });
 
+pub(crate) unsafe fn shift_lifetime<'s, 't>(source:ChildIterator<'s>) -> ChildIterator<'t> {
+    unsafe {
+        let ptr = &source as *const ChildIterator<'s>;
+        let value = (*(ptr as *const ChildIterator<'t>)).clone();
+        value
+    }
+}
