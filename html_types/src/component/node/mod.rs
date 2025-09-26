@@ -155,7 +155,7 @@ impl Node {
         let mut child = child.node();
 
         // Check if there is a child list
-        if self.0.children().is_void() {
+        if self.0.is_void() {
             return Err(NodeError::NoDescendents)
         }
         
