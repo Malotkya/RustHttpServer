@@ -3,9 +3,9 @@ use std::{
         LinkedList,
         HashMap
     },
-    rc::Rc,
-    cell::{RefCell, RefMut}
 };
+
+use crate::component::ChildIterator;
 
 use super::{
     attributes::{
@@ -72,20 +72,21 @@ impl Element {
     }
 
     fn set_attribute_helper<T: ToAttributeValue>(&mut self, name:&str, namespace:Option<&str>, value:T) -> Option<AttributeValue>{
-        if let Some(mut atr) = self.get_attribute_helper(name, namespace) {
+        if let Some(atr) = self.get_attribute_helper(name, namespace) {
            let old = unsafe {
                 (*atr.1).set_value(value)
            };
            Some(old)
         } else {
-            let atr = self.0.doc.create_attribute(AttributeData{
-                namespace: namespace.map(|s|s.to_string()),
-                name: AttributeName::Static("class"),
-                parrent: Some(Node(self.0.clone())),
-                value: value.into_value()
-            });
+            let mut atr = self.0.doc.create_attribute(
+                "class",
+                namespace,
+                value
+            );
 
             unsafe {
+                atr.0.borrow_mut().set_parrent(Some(&self.node()));
+
                 if let Some(list) = self.0.borrow_mut().inner_mut() {
                     list.push_back(atr.node());
                 }
@@ -96,22 +97,38 @@ impl Element {
     }
 
     fn class(&mut self) -> *mut SpaceSeperatedList {
-        if let Some(mut value) = self.get_attribute("class", None) {
-            unsafe{ value.0.borrow_mut().coarse_list() as *mut SpaceSeperatedList }
+        if let Some(value) = self.get_attribute_helper("class", None) {
+            unsafe{ (*value.1).coarse_list() as *mut SpaceSeperatedList }
         } else {
-            let mut attribute = Attribute(self.doc.create_attribute(AttributeData{
-                namespace: None,
-                name: AttributeName::Static("class"),
-                parrent: Some(Node::new_helper(self)),
-                value: AttributeValue::ClassList(SpaceSeperatedList::new())
-            }));
+            let mut atr = self.0.doc.create_attribute(
+                "class",
+                None,
+                SpaceSeperatedList::new()
+            );
 
             unsafe{
-                let ptr = attribute.0.borrow_mut().coarse_list() as *mut SpaceSeperatedList;
-                self.borrow_mut().children.push_back(attribute.node());
+                let ptr = (*atr.1).coarse_list() as *mut SpaceSeperatedList;
+                atr.0.borrow_mut().set_parrent(Some(&self.node()));
+
+                if let Some(list) = self.0.borrow_mut().inner_mut() {
+                    list.push_back(atr.node());
+                }
+
                 ptr
             }
         }
+    }
+
+    pub(crate) fn sibblings(&self) -> ChildIterator {
+        if let Some(parrent) = self.0.parrent() {
+            parrent.child_nodes().into()
+        } else {
+            ChildIterator::empty()
+        }
+    }
+
+    pub(crate) fn clone(&self) -> Self {
+        Self(self.0.clone())
     }
 }
 
@@ -153,64 +170,38 @@ impl TryFrom<&Node> for Element {
 
 ///// https://developer.mozilla.org/en-US/docs/Web/API/Element /////
 impl Element {
-    pub(crate) fn static_new(name: &'static str, attributes:Vec<AttributeItem>) -> Self {
-        Self(
-            Rc::new(RefCell::new(
-                ElementData {
-                    name: AttributeName::Static(name),
-                    attributes,
-                    children: LinkedList::new(),
-                    parrent: None
-                }
-            ))
-        )
-    }
-
     MakeAriaAttributes!(GlobalAttributes);
     MakeAttributes!(GlobalAttributes);
     
     //pub fn assigned_slot(&self) -> HtmlSlotElement;
 
     pub fn attributes(&self) -> HashMap<String, AttributeValue> {
-        let inner = self.0.borrow();
-        inner.attributes.iter().map(|att|{
-            (att.key().to_owned(), att.value().clone())
+        self.0.attributes().map(|att|{
+            (att.name().to_owned(), att.value().clone())
         }).collect()
     }
 
-    pub fn child_elements(&self) -> Vec<Node> {
-        let inner = self.0.borrow();
-        inner.children.iter().filter_map(|node| {
-            if node.is_visual_element() {
-                Some(node.node())
-            } else {
-                None
-            }
-        }).collect()
+    pub fn child_elements(&self) -> ChildIterator {
+        match self.0.inner() {
+            Some(list) => ChildIterator::new(list.iter()),
+            None => ChildIterator::empty()
+        }
     }
 
     pub fn child_element_count(&self) -> usize {
-        let inner = self.0.borrow();
-        
-        let mut count:usize = 0;
-
-        for node in &inner.children {
-            if node.is_visual_element() {
-                count += 1;
-            }
-        }
-
-        count
+        self.child_elements().count()
     }
 
-    pub fn class_list(&self) -> RefMut<'_, SpaceSeperatedList> {
-        let inner = self.0.borrow_mut();
-        RefMut::map(inner, |x: &mut ElementData |x.class())
+    pub fn class_list(&mut self) -> &mut SpaceSeperatedList {
+        unsafe{ &mut (*self.class()) }
     }
 
-    pub fn class_name(&self) -> RefMut<'_, String> {
-        let inner = self.0.borrow_mut();
-        RefMut::map(inner, |x: &mut ElementData|x.class().inner())
+    pub fn class_name(&mut self) -> &str {
+       unsafe{ (*self.class()).as_str() }
+    }
+
+    pub fn set_class_name(&mut self, value:&str) {
+        unsafe{ (*self.class()) = value.into() }
     }
 
     pub fn client_hight(&self) -> usize {
@@ -233,64 +224,29 @@ impl Element {
         0.0 //No actual rendering or calculating will be done
     }
 
-    pub fn first_element_child(&self) -> Option<Node> {
-        let inner = self.0.borrow();
-
-        for value in &inner.children {
-            if value.is_visual_element() {
-                return Some(value.node())
-            }
-        }
-
-        None
+    pub fn first_element_child(&self) -> Option<Element> {
+        self.0.children().next()
     }
 
-    pub fn last_element_child(&self) -> Option<Node> {
-        let inner = self.0.borrow();
-
-        for value in inner.children.iter().rev() {
-            if value.is_visual_element() {
-                return Some(value.node())
-            }
-        }
-
-        None
+    pub fn last_element_child(&self) -> Option<Element> {
+        self.0.children().last()
     }
 
-    pub fn local_name(&self) -> String {
-        let inner = self.0.borrow();
-        let name = inner.name.value();
-
-        if let Some(index) = name.rfind(":") {
-            name[index+1..].to_string()
-        } else {
-            name.to_string()
-        }
+    pub fn local_name(&self) -> &str {
+        self.0.local_name()
     }
 
-    pub fn namespace_uri(&self) -> Option<String> {
-        None
-    }
+    /*pub fn namespace_uri(&self) -> Option<&str> {
+        self.0.namespace()
+    }*/
 
-    pub fn next_element_sibbling(&self) -> Option<Node> {
-        let inner = self.0.borrow();
+    pub fn next_element_sibbling(&self) -> Option<Element> {
+        if let Some(parrent) = self.0.parrent() {
+            let mut it = parrent.0.children();
 
-        if let Some(parrent) = inner.parrent() {
-            let parrent = parrent.0.borrow();
-
-            if let Ok(list) = parrent.children() {
-                let mut it = list.iter();
-
-                while let Some(next) = it.next() {
-                    if next.is_same_node(self) {
-                        break;
-                    }
-                }
-
-                while let Some(next) = it.next() {
-                    if next.is_visual_element() {
-                        return Some(next.node())
-                    }
+            while let Some(next) = it.next() {
+                if next.node().is_same_node(&self.node()) {
+                    return it.next()
                 }
             }
         }
@@ -302,33 +258,20 @@ impl Element {
         todo!("Compile html")
     }
 
-    pub fn prefix(&self) -> Option<String> {
-        let inner = self.0.borrow();
-        let name = inner.name.value();
-
-        if let Some(index) = name.rfind(":") {
-            Some(name[..index].to_string())
-        } else {
-            None
-        }
+    pub fn prefix(&self) -> Option<&str> {
+        self.0.namespace()
     }
 
-    pub fn previous_element_sibbling(&self) -> Option<Node> {
-        let inner = self.0.borrow();
+    pub fn previous_element_sibbling(&self) -> Option<Element> {
+        if let Some(parrent) = self.0.parrent() {
+            let mut prev:Option<Element> = None;
+            let mut it = parrent.0.children();
 
-        if let Some(parrent) = inner.parrent() {
-            let parrent = parrent.0.borrow();
-
-            if let Ok(list) = parrent.children() {
-                let mut prev: Option<Node> = None;
-                let mut it = list.iter();
-
-                while let Some(next) = it.next() {
-                    if next.is_same_node(self) {
-                        return prev;
-                    } else if next.is_visual_element() {
-                        prev = Some(next.node())
-                    }
+            while let Some(next) = it.next() {
+                if next.node().is_same_node(&self.node()) {
+                    return prev
+                } else {
+                    prev = Some(next.into());
                 }
             }
         }
@@ -356,25 +299,30 @@ impl Element {
         None //TODO: Return whole thing as shadow root ???
     }
 
-    pub fn tag_name(&self) -> String {
-        self.0.borrow().name().to_owned()
+    pub fn tag_name(&self) -> &str {
+        self.0.local_name()
     }
 
-    pub fn after(&self, list: &[impl IntoNode]) -> Result<(), NodeError> {
+    pub fn after(&mut self, list: &[impl IntoNode]) -> Result<(), NodeError> {
         append_parrent_helper(self, list, true)
     }
 
     //ToDo: pub fn animate(&mut self, keyframs, options);   
 
-    fn append(&self, list: &[impl IntoNode]) {
-        let mut inner = self.0.borrow_mut();
-        inner.children.append(&mut list.iter()
-            .map(|n|n.node())
-            .collect()
-        )
+    fn append(&mut self, list: &[impl IntoNode]) -> Result<(), NodeError> {
+        match unsafe{ self.0.borrow_mut().inner_mut() } {
+            Some(value) => {
+                value.append(&mut list.iter()
+                    .map(|n|n.node())
+                    .collect()
+                );
+                Ok(())
+            },
+            None => Err(NodeError::NoDescendents)
+        }
     }
 
-    fn before(&self, list: &[impl IntoNode]) -> Result<(), NodeError> {
+    fn before(&mut self, list: &[impl IntoNode]) -> Result<(), NodeError> {
         append_parrent_helper(self, list, false)
     }
 
@@ -402,48 +350,19 @@ impl Element {
         self.get_attribute_helper(name, None).map(|atr|atr.value().clone())
     }
 
-    pub fn get_attribute_names(&self) -> Vec<String> {
-        self.0.borrow().attributes.iter().map(|item|{
-            item.key().to_string()
-        }).collect()
+    pub fn get_attribute_names(&self) -> impl Iterator<Item = String> {
+        self.0.attributes().map(|atr|atr.name().to_string())
     }
 
-    pub fn get_attribute_node(&self, name:&str) -> Option<Attribute> {
-        let interanl = self.0.borrow();
-        for att in &interanl.attributes {
-            if att.key() == name {
-                return Some(
-                    Attribute::new(att, Some(self))
-                )
-            }
-        }
-
-        None
-    }
-
-    pub fn get_attribute_ns(&self, _namespace:&str, name:&str) -> Option<AttributeValue> {
-        self.get_attribute(name)
+    pub fn get_attribute_ns(&self, namespace:&str, name:&str) -> Option<AttributeValue> {
+        self.get_attribute_helper(name, Some(namespace)).map(|atr|atr.value().clone())
     }
 
     //ToDo:pub fn get_bounding_client_rect(&self) -> ??;
     //ToDo:pub fn get_client_rects() -> ??;
 
-    pub fn get_elements_by_class_name(&self, name:&str) -> Vec<Node> {
-        self.0.borrow().children.iter().filter_map(|node|{
-            let mut inner = node.0.borrow_mut();
-            
-            if let Some(list) = inner.attributes_mut() {
-                for att in list {
-                    if att.key() == "class" && att.coarse_list().as_str() == name {
-                        return Some(node.node())
-                    }
-                }
-
-                None
-            } else {
-                None
-            }
-        }).collect()
+    pub fn get_elements_by_class_name(&self, name:&str) -> Vec<Element> {
+        
     }
 
     pub fn get_elements_by_tag_name(&self, name:&str) -> Vec<Node> {
@@ -582,7 +501,7 @@ impl Element {
         }
  */
 
-fn append_parrent_helper(child:&Element, list: &[impl IntoNode], after:bool) -> Result<(), NodeError> {
+fn append_parrent_helper(child:&mut Element, list: &[impl IntoNode], after:bool) -> Result<(), NodeError> {
     let inner = child.0.borrow_mut(); 
 
     if let Some(parrent) = inner.parrent() {
