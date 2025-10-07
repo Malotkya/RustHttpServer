@@ -4,6 +4,7 @@ use crate::component::{
     node::IntoNode,
     ChildIterator, shift_lifetime
 };
+use super::*;
 
 enum CombinatorIteratorType<'a> {
     Child(ChildIterator<'a>),
@@ -17,6 +18,24 @@ pub enum QueryCombinator {
     SubsequentSibling,
     NextSibling,
     Descendant
+}
+
+impl IntoQuery for QueryCombinator {
+    fn parse_query(&self) -> Result<Query, QueryParseError> {
+        let mut queue = VecDeque::new();
+        queue.push_front(SubQuery {
+            parts: vec![QueryParts {
+                combinator: self.clone(),
+                name: None,
+                id: None,
+                class: None,
+                attributes: Vec::new(),
+                psudo_class: Vec::new(),
+                psudo_element: None
+            }]
+        });
+        Ok(Query{queue})
+    }
 }
 
 pub(crate) struct CombinatorIterator<'a>(CombinatorIteratorType<'a>);
@@ -82,5 +101,54 @@ impl<'a> Iterator for CombinatorIterator<'a> {
             
             
         }
+    }
+}
+
+pub(crate) fn find_next_combinator(value:&str) -> Option<(QueryCombinator, usize, usize)> {
+    let mut it = value.chars().enumerate();
+    let mut start: Option<usize> = None;
+    let mut combinator: Option<QueryCombinator> = None;
+    while let Some((index, char)) = it.next() {
+        match char {
+            '+' => if combinator.is_some() {
+                break;
+            } else {
+                combinator = Some(QueryCombinator::NextSibling)
+            },
+            '>' => if combinator.is_some() {
+                break;
+            } else {
+                combinator = Some(QueryCombinator::Child)
+            },
+            '~' => if combinator.is_some() {
+                break;
+            } else {
+                combinator = Some(QueryCombinator::SubsequentSibling)
+            },
+            _ => {
+                if char.is_whitespace() {
+                    if start.is_none() {
+                        start = Some(index)
+                    }
+                } else {
+                    break;
+                }
+            }
+        }
+    }
+
+    match start {
+        Some(start) => {
+            let end = it.next()
+                .map(|(index, _)|index)
+                .unwrap_or(value.len());
+
+            Some((
+                combinator.unwrap_or(QueryCombinator::Descendant),
+                start,
+                end
+            ))
+        },
+        None => None
     }
 }
