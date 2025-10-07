@@ -109,17 +109,20 @@ BuildPsudoClass!(
     Current: browser_only = "current",
     Default: default = "default",
     Defined: defined = "defined",
-    Dir(dir:TextDirection): direction = "dir"
-    /*Disabled: disabled,
-    Empty: empty,
-    FirstChild: first_child,
-    FirstOfType: first_of_type,
-    Focus: browser_only,
-    FocusVisible: browser_only,
-    FocusWithin: browser_only,
-    FullScreen: browser_only,
-    //Has(/*Selector*/String),
-    Hover: browser_only
+    Dir(dir:TextDirection): direction = "dir",
+    Disabled: disabled = "disabled",
+    Empty: empty = "empty",
+    First: first_child = "first",
+    FirstChild: first_child = "first_child",
+    FirstOfType: first_of_type = "first-of-type",
+    Focus: browser_only = "focuse",
+    FocusVisible: browser_only = "focus-visible",
+    FocusWithin: browser_only = "focus-within",
+    FullScreen: browser_only = "fullscreen",
+    Future: browser_only = "future",
+    HasSlotted: has_sloted = "has-slotted",
+    Has(query: Query): has = "has"
+    /*Hover: browser_only
     InRange,
     Indeterminate,
     Invalid,
@@ -164,7 +167,7 @@ BuildPsudoClass!(
 );
 
 impl IntoQuery for PsudoClass {
-    fn parse_query(&self) -> Result<Query, QueryParseError> {
+    fn parse(&self) -> Result<Query, QueryParseError> {
         let mut queue = VecDeque::new();
         queue.push_front(SubQuery {
             parts: vec![QueryParts {
@@ -182,7 +185,7 @@ impl IntoQuery for PsudoClass {
 }
 
 impl IntoQuery for &[PsudoClass] {
-    fn parse_query(&self) -> Result<Query, QueryParseError> {
+    fn parse(&self) -> Result<Query, QueryParseError> {
         let mut queue = VecDeque::new();
         queue.push_front(SubQuery {
             parts: vec![QueryParts {

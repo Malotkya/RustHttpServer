@@ -3,7 +3,10 @@ use crate::component::{
     element::Element,
     node::IntoNode,
 };
-use super::parts::MatchOptions;
+use super::{
+    IntoQuery, Query,
+    parts::MatchOptions
+};
 
 
 pub(crate) fn match_attribute<T:ToAttributeValue>(node:&Element, name:&str, opts:Option<MatchOptions<T>>) -> bool {
@@ -98,7 +101,7 @@ pub(crate) fn default(node:&Element) -> bool {
     }
 }
 
-pub(crate) fn defined(node:&Element) -> bool {
+pub(crate) fn defined(_node:&Element) -> bool {
     todo!("Create list of custom elements and html elements")
 }
 
@@ -151,4 +154,30 @@ pub(crate) fn first_of_type(node:&Element) -> bool {
     }
 
     false
+}
+
+pub(crate) fn has_sloted(node: &Element) -> bool {
+    if node.tag_name() == "slot" && let Some(name) = node.get_attribute("name") {
+        if let Some(template) = node.node().parrent() {
+            if template.node_name() == "template" && let Some(parrent) = template.parrent() {
+                if let Ok(parrent) = Element::try_from(parrent) {
+                    return has(
+                        &parrent,
+                        &format!("[slot=\"{}\"]", name.as_str())
+                            .parse_default()
+                    )
+                }
+            }
+        }
+    }
+    
+
+    false
+}
+
+pub(crate) fn has(node:&Element, query:&Query) -> bool {
+    node.query_selector(query)
+        .ok()
+        .flatten()
+        .is_some()
 }
