@@ -29,7 +29,7 @@ impl QueryFilter for Id {
 }
 
 impl IntoQuery for Id {
-    fn parse_query(&self) -> Result<Query, QueryParseError> {
+    fn parse(&self) -> Result<Query, QueryParseError> {
         let mut queue = VecDeque::new();
         queue.push_front(SubQuery {
             parts: vec![QueryParts {
@@ -64,7 +64,7 @@ impl QueryFilter for Class {
 }
 
 impl IntoQuery for Class {
-    fn parse_query(&self) -> Result<Query, QueryParseError> {
+    fn parse(&self) -> Result<Query, QueryParseError> {
         let mut queue = VecDeque::new();
         queue.push_front(SubQuery {
             parts: vec![QueryParts {
@@ -88,7 +88,7 @@ pub struct Name {
 }
 
 impl IntoQuery for Name {
-    fn parse_query(&self) -> Result<Query, QueryParseError> {
+    fn parse(&self) -> Result<Query, QueryParseError> {
         let mut queue = VecDeque::new();
         queue.push_front(SubQuery {
             parts: vec![QueryParts {
@@ -159,7 +159,7 @@ impl QueryFilter for Attribute {
 }
 
 impl IntoQuery for Attribute {
-    fn parse_query(&self) -> Result<Query, QueryParseError> {
+    fn parse(&self) -> Result<Query, QueryParseError> {
         let mut queue = VecDeque::new();
         queue.push_front(SubQuery {
             parts: vec![QueryParts {
@@ -177,7 +177,7 @@ impl IntoQuery for Attribute {
 }
 
 impl IntoQuery for &[Attribute] {
-    fn parse_query(&self) -> Result<Query, QueryParseError> {
+    fn parse(&self) -> Result<Query, QueryParseError> {
         let mut queue = VecDeque::new();
         queue.push_front(SubQuery {
             parts: vec![QueryParts {

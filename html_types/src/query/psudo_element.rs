@@ -71,7 +71,7 @@ BuildPsudoElement!(
 );
 
 impl IntoQuery for PsudoElement {
-    fn parse_query(&self) -> Result<Query, QueryParseError> {
+    fn parse(&self) -> Result<Query, QueryParseError> {
         let mut queue = VecDeque::new();
         queue.push_front(SubQuery {
             parts: vec![QueryParts {

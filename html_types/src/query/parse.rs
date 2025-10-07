@@ -17,12 +17,19 @@ use std::{
 };
 
 pub trait IntoQuery {
-    fn parse_query(&self) -> Result<Query, QueryParseError>;
+    fn parse(&self) -> Result<Query, QueryParseError>;
+
+    #[inline]
+    fn parse_default(&self) -> Query {
+        self.parse()
+            .ok()
+            .unwrap_or(Query::default())
+    }
 }
 
 impl<T: IntoQuery> IntoQuery for &T {
-    fn parse_query(&self) -> Result<Query, QueryParseError> {
-        (*self).parse_query()
+    fn parse(&self) -> Result<Query, QueryParseError> {
+        (*self).parse()
     }
 }
 
@@ -589,8 +596,8 @@ impl TryFrom<String> for Query {
 }
 
 impl IntoQuery for String {
-    fn parse_query(&self) -> Result<Query, QueryParseError> {
-        self.as_str().parse_query()
+    fn parse(&self) -> Result<Query, QueryParseError> {
+        IntoQuery::parse(&self.as_str())
     }
 }
 
@@ -617,7 +624,7 @@ impl TryFrom<&str> for Query {
 }
 
 impl IntoQuery for &str {
-    fn parse_query(&self) -> Result<Query, QueryParseError> {
+    fn parse(&self) -> Result<Query, QueryParseError> {
         (*self).try_into()
     }
 }

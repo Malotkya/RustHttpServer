@@ -73,7 +73,7 @@ pub struct QueryParts {
 }
 
 impl IntoQuery for QueryParts {
-    fn parse_query(&self) -> Result<Query, QueryParseError> {
+    fn parse(&self) -> Result<Query, QueryParseError> {
         let mut queue = VecDeque::new();
         queue.push_front(SubQuery {
             parts: vec![self.clone()]
@@ -114,7 +114,7 @@ impl SubQuery {
 }
 
 impl IntoQuery for SubQuery {
-    fn parse_query(&self) -> Result<Query, QueryParseError> {
+    fn parse(&self) -> Result<Query, QueryParseError> {
         let mut queue = VecDeque::new();
         queue.push_front(self.clone());
         Ok(Query{queue})
@@ -181,10 +181,23 @@ impl Query {
             it, current, element
         }
     }
+
+    pub fn from(value:&str) -> Self {
+        TryInto::<Self>::try_into(value)
+            .ok().unwrap_or(Self::default())
+    }
+}
+
+impl Default for Query {
+    fn default() -> Self {
+        Self {
+            queue: VecDeque::new()
+        }
+    }
 }
 
 impl IntoQuery for Query {
-    fn parse_query(&self) -> Result<Query, QueryParseError> {
+    fn parse(&self) -> Result<Query, QueryParseError> {
         Ok(self.clone().into())
     }
 }
