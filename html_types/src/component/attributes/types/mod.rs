@@ -113,8 +113,37 @@ impl SpaceSeperatedList {
         }
     }
 
+    fn find_i(&self, value:&str, start:usize) -> Option<usize> {
+        if start >= value.len() {
+            None
+        } else if let Some(index) = self.0.to_lowercase()[start..].find(&value.to_lowercase()) {
+            //Make sure value is not substring of a different value.
+            let mut chars = self.0.chars();
+
+            //Prev doesn't exist or is whitespace
+            let prev = chars.nth(index-1);
+            if prev.is_none() || prev.unwrap().is_whitespace() {
+
+                //Next deosn't exists or is whitespace
+                let next = chars.nth(index+value.len()+1);
+                if next.is_none() || next.unwrap().is_whitespace() {
+                    return Some(index)
+                }
+
+            }
+
+            self.find_i(value, index)
+        } else {
+            None
+        }
+    }
+
     pub fn has<T: ToAttributeValue>(&self, value:&T) -> bool {
         self.find(value.into_value().as_str(), 0).is_some()
+    }
+
+    pub fn has_i<T: ToAttributeValue>(&self, value:&T) -> bool {
+        self.find_i(value.into_value().as_str(), 0).is_some()
     }
 
     pub fn add<T: ToAttributeValue>(&mut self, value:&T) -> bool {
