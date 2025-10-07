@@ -52,6 +52,7 @@ AttributeEnum!(
 
 AttributeEnum!(
     TextDirection,
+    Auto,
     (LeftToRight, "ltr"),
     (RightToLeft, "rtl"),
     (Auto, "auto")
