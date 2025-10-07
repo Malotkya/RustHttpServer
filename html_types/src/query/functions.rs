@@ -10,8 +10,12 @@ pub(crate) fn match_attribute<T:ToAttributeValue>(node:&Element, name:&str, opts
     if let Some(att) = node.get_attribute(name) {
         match opts {
             None => true,
-            Some(MatchOptions{ops, value}) => {
-                att.compare(ops, &value)
+            Some(MatchOptions{ops, value, sensitive}) => {
+                if sensitive {
+                    att.compare(ops, &value)
+                } else {
+                    att.compare_insensitive(ops, &value)
+                }
             }
         }
     } else {
