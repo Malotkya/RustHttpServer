@@ -10,6 +10,7 @@ use crate::component::attributes::SpaceSeperatedList;
 pub enum AttributeMatchOperator {
     Exact,
     WhitespaceValue,
+    HyphinMatch,
     Contains,
     Prefix,
     Suffix
@@ -70,13 +71,66 @@ impl AttributeValue {
     }
 
     #[inline]
+    pub(crate) fn has_i<T: ToAttributeValue>(&self, value:&T) -> bool {
+        self.as_str().to_lowercase()
+            .find(&value.into_value().as_str().to_lowercase())
+            .is_some()
+    }
+
+    #[inline]
     pub fn ends_with<T: ToAttributeValue>(&self, value:&T) -> bool {
         self.as_str().ends_with(value.into_value().as_str())
     }
 
     #[inline]
+    pub(crate) fn ends_with_i<T: ToAttributeValue>(&self, value:&T) -> bool {
+        self.as_str().to_lowercase()
+            .ends_with(&value.into_value().as_str().to_lowercase())
+    }
+
+    #[inline]
+    pub fn has_hyphin_value<T: ToAttributeValue>(&self, value: &T) -> bool {
+        let value = value.into_value();
+        if self.as_str() == value.as_str() {
+            true
+        } else {
+            if let Some(index) = self.as_str().rfind('-') {
+                &self.as_str()[index..] == value.as_str()
+            } else {
+                false
+            }
+        }
+    }
+
+    #[inline]
+    pub(crate) fn has_hyphin_value_i<T: ToAttributeValue>(&self, value: &T) -> bool {
+        let lhs = self.as_str().to_lowercase();
+        let rhs = value.into_value().as_str().to_lowercase();
+
+        if lhs == rhs {
+            true
+        } else {
+            if let Some(index) = lhs.rfind('-') {
+                &lhs[index..] == rhs.as_str()
+            } else {
+                false
+            }
+        }
+    }
+
+    #[inline]
     pub fn starts_with<T: ToAttributeValue>(&self, value:&T) -> bool {
         if let Some(index) = self.as_str().find(value.into_value().as_str()) {
+            index == 0
+        } else {
+            false
+        }
+    }
+
+    #[inline]
+    pub(crate) fn starts_with_i<T: ToAttributeValue>(&self, value:&T) -> bool {
+        if let Some(index) = self.as_str().to_lowercase()
+                .find(&value.into_value().as_str().to_ascii_uppercase()) {
             index == 0
         } else {
             false
@@ -131,12 +185,37 @@ impl AttributeValue {
             AttributeMatchOperator::Suffix => self.ends_with(other),
             AttributeMatchOperator::Contains => self.has(other),
             AttributeMatchOperator::Exact => Self::eq(self, other),
+            AttributeMatchOperator::HyphinMatch => self.has_hyphin_value(other),
             AttributeMatchOperator::WhitespaceValue => match self {
                 Self::ClassList(list) => list.has(other),
                 _ => {
                     let other = other.into_value();
                     for str in self.as_str().split_whitespace() {
                         if str == other.as_str() {
+                            return true;
+                        }
+                    }
+
+                    false
+                }
+            }
+        }
+    }
+
+    pub(crate) fn compare_insensitive<T: ToAttributeValue>(&self, operator:AttributeMatchOperator, other:&T) -> bool {
+        match operator {
+            AttributeMatchOperator::Prefix => self.starts_with_i(other),
+            AttributeMatchOperator::Suffix => self.ends_with_i(other),
+            AttributeMatchOperator::Contains => self.has_i(other),
+            AttributeMatchOperator::HyphinMatch => self.has_hyphin_value_i(other),
+            AttributeMatchOperator::Exact => self.as_str().to_ascii_lowercase()
+                == ToAttributeValue::into_value(other).as_str().to_lowercase(),
+            AttributeMatchOperator::WhitespaceValue => match self {
+                Self::ClassList(list) => list.has_i(other),
+                _ => {
+                    let other = other.into_value().as_str().to_lowercase();
+                    for str in self.as_str().split_whitespace() {
+                        if str.to_lowercase() == other {
                             return true;
                         }
                     }
