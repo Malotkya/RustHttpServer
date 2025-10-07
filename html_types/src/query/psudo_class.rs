@@ -34,11 +34,48 @@ macro_rules! BuildPsudoClass {
             type Error = String;
 
             fn try_from(value:&str) -> Result<Self, Self::Error> {
-                match value {
+                
+                if value.is_empty() {
+                    return Err("An empty string cannot be a PsudoClass!".to_string())
+                }
+                $(else if value == $str_lit {
+                    Ok(
+                        Self::$name
+                        $(
+                            ($( <$arg_type>::default() ),+)
+                        )?
+                    )
+                }$( else if let Some(index) = value.find($str_lit) && index == 0{
+                    let start = $str_lit.len();
+                    let end = value.len() - 1;
+
+                    let mut chars = value.chars();
+
+                    let open = chars.nth(start);
+                    if open.is_none() || open.unwrap() != '(' {
+                        return Err(format!("Missing open bracket at {} for PsudoClass {}!", start, $str_lit));
+                    }
+                    
+                    let close = chars.nth(end);
+                    if close.is_none() || close.unwrap() != ')' {
+                        return Err(format!("Missing closing bracket at {} for PsudoClass {}!", end, $str_lit));
+                    }
+
+                    let mut args = value[start..=end].split(",");
+
                     $(
-                        $str_lit => Ok(Self::$name),
+                        let $arg_name = <$arg_type>::from(args.next().unwrap_or("").trim());
                     )+
-                    _ => Err(
+
+                    Ok(
+                        Self::$name(
+                            $($arg_name),+
+                        )
+                    )
+                })?
+                )+
+                else {
+                    Err(
                         format!("{} is not a valid PsudoClass!", value)
                     )
                 }
@@ -64,14 +101,16 @@ macro_rules! BuildPsudoClass {
 BuildPsudoClass!(
     Active: browser_only = "active",
     ActiveViewTransition: browser_only = "active-view-transition",
-    AnyLink: any_link = "active-link"
-    /*AutoFill: browser_only,
-    Buffering: browser_only,
-    Checked: checked,
-    Default: default,
-    Defined: defined,
-    Dir(dir:TextDirection): direction,
-    Disabled: disabled,
+    AnyLink: any_link = "active-link",
+    AutoFill: browser_only = "autofill",
+    Blank: blank = "blank",
+    Buffering: browser_only = "buffering",
+    Checked: checked = "checked",
+    Current: browser_only = "current",
+    Default: default = "default",
+    Defined: defined = "defined",
+    Dir(dir:TextDirection): direction = "dir"
+    /*Disabled: disabled,
     Empty: empty,
     FirstChild: first_child,
     FirstOfType: first_of_type,
