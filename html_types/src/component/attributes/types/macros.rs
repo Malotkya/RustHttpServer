@@ -98,6 +98,15 @@ macro_rules! AttributeEnum {
                 Self::$default
             }
         }
+
+        impl From<&str> for $enum_name {
+            fn from(value: &str) -> Self {
+                match value.trim().to_lowercase().as_str() {
+                    $( $value => Self::$name, )+
+                    _ => Self::default()
+                }
+            }
+        }
     };
 }
 
