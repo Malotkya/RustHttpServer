@@ -11,10 +11,12 @@ pub use combinator::*;
 mod functions;
 mod parts;
 pub use parts::*;
-mod selector;
-pub use selector::Selector;
-mod into;
-pub use into::*;
+mod psudo_class;
+pub use psudo_class::*;
+mod psudo_element;
+pub use psudo_element::*;
+mod parse;
+pub use parse::*;
 
 pub(crate) trait QueryFilter {
     fn filter(&self, node:&Element) -> bool;
@@ -66,7 +68,18 @@ pub struct QueryParts {
     pub id: Option<Id>,
     pub class: Option<Class>,
     pub attributes: Vec<Attribute>,
-    pub selectors: Vec<Attribute>
+    pub psudo_class: Vec<PsudoClass>,
+    pub psudo_element: Option<PsudoElement>
+}
+
+impl IntoQuery for QueryParts {
+    fn parse_query(&self) -> Result<Query, QueryParseError> {
+        let mut queue = VecDeque::new();
+        queue.push_front(SubQuery {
+            parts: vec![self.clone()]
+        });
+        Ok(Query{queue})
+    }
 }
 
 type QueryPartsIterator<'a> = Filter<CombinatorIterator<'a>, Box<dyn FnMut(&Element) -> bool + 'a>>;
@@ -77,7 +90,8 @@ impl QueryFilter for QueryParts {
             && QueryFilter::filter(&self.id, node)
             && QueryFilter::filter(&self.class, node)
             && self.attributes.filter(node)
-            && self.selectors.filter(node)
+            && self.psudo_class.filter(node)
+            && QueryFilter::filter(&self.psudo_element, node)
     }
 }
 
@@ -96,6 +110,14 @@ pub struct SubQuery {
 impl SubQuery {
     fn query(&self, element:Element) -> SubQueryIterator {
         SubQueryIterator::new(&self.parts, element)
+    }
+}
+
+impl IntoQuery for SubQuery {
+    fn parse_query(&self) -> Result<Query, QueryParseError> {
+        let mut queue = VecDeque::new();
+        queue.push_front(self.clone());
+        Ok(Query{queue})
     }
 }
 
@@ -158,6 +180,12 @@ impl Query {
         QueryIterator {
             it, current, element
         }
+    }
+}
+
+impl IntoQuery for Query {
+    fn parse_query(&self) -> Result<Query, QueryParseError> {
+        Ok(self.clone().into())
     }
 }
 
