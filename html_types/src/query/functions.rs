@@ -36,6 +36,17 @@ pub(crate) fn any_link(node:&Element) -> bool {
     }
 }
 
+pub(crate) fn blank(node:&Element) -> bool {
+    match node.tag_name() {
+        "input" | "text-area" => if let Some(value) = node.get_attribute("value") {
+            value.as_str().is_empty()
+        } else {
+            true
+        },
+        _ => node.node().get_text_content().is_empty()
+    }
+}
+
 pub(crate) fn checked(node:&Element) -> bool {
     match node.tag_name() {
         "input" => {
