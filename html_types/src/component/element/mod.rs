@@ -1,11 +1,20 @@
 use std::{
     collections::{
         LinkedList,
-        HashMap
-    },
+        HashMap,
+        HashSet
+    }
 };
 
-use crate::component::ChildIterator;
+use crate::{
+    component::ChildIterator, 
+    query::{
+        IntoQuery, QueryParseError,
+        Id as QueryId,
+        Name as QueryName,
+        Class as QueryClass
+    }
+};
 
 use super::{
     attributes::{
@@ -15,7 +24,7 @@ use super::{
     },
     document::DocumentItemRef,
     node::*,
-    other::{DocumentFragment, Text}
+    other::DocumentFragment
 };
 
 mod internal;
@@ -119,7 +128,7 @@ impl Element {
         }
     }
 
-    pub(crate) fn sibblings(&self) -> ChildIterator {
+    pub(crate) fn sibblings<'a>(&'a self) -> ChildIterator<'a> {
         if let Some(parrent) = self.0.parrent() {
             parrent.child_nodes().into()
         } else {
@@ -181,7 +190,7 @@ impl Element {
         }).collect()
     }
 
-    pub fn child_elements(&self) -> ChildIterator {
+    pub fn child_elements<'a>(&'a self) -> ChildIterator<'a> {
         match self.0.inner() {
             Some(list) => ChildIterator::new(list.iter()),
             None => ChildIterator::empty()
@@ -304,26 +313,26 @@ impl Element {
     }
 
     pub fn after(&mut self, list: &[impl IntoNode]) -> Result<(), NodeError> {
-        append_parrent_helper(self, list, true)
+        if let Some(mut parrent) = self.node().parrent() {
+            append_parrent_helper(&mut parrent, list, true, Some(self))
+        } else {
+            Err(NodeError::NoParrent)
+        }
+        
     }
 
     //ToDo: pub fn animate(&mut self, keyframs, options);   
 
-    fn append(&mut self, list: &[impl IntoNode]) -> Result<(), NodeError> {
-        match unsafe{ self.0.borrow_mut().inner_mut() } {
-            Some(value) => {
-                value.append(&mut list.iter()
-                    .map(|n|n.node())
-                    .collect()
-                );
-                Ok(())
-            },
-            None => Err(NodeError::NoDescendents)
-        }
+    fn append(&self, list: &[impl IntoNode]) -> Result<(), NodeError> {
+        append_parrent_helper(&mut self.node(), list, false, None)
     }
 
     fn before(&mut self, list: &[impl IntoNode]) -> Result<(), NodeError> {
-        append_parrent_helper(self, list, false)
+        if let Some(mut parrent) = self.node().parrent() {
+            append_parrent_helper(&mut parrent, list, false, Some(self))
+        } else {
+            Err(NodeError::NoParrent)
+        }
     }
 
      pub fn check_visibility(&self, _options:Option<VisibilityOptions>) -> bool {
@@ -338,8 +347,16 @@ impl Element {
         // If visibility is hidden or collapse and hidden (default false)
     }
 
-    fn closest(&self, selector:&str) -> Option<Node> {
-        todo!("Css style selectors implementation")
+    fn closest<T: IntoQuery>(&self, selector:&T) -> Result<Option<Element>, QueryParseError> {
+        let inner_match = self.query_selector(selector)?;
+
+        if inner_match.is_some() {
+            Ok(inner_match)
+        } else if let Some(node) = self.0.parrent() && let Ok(parrent) = Element::try_from(node) {
+            parrent.closest(selector)
+        } else {
+            Ok(None)
+        }
     }
 
     //ToDo:pub fn computed_style_map() -> CssStyleMap;
@@ -362,24 +379,23 @@ impl Element {
     //ToDo:pub fn get_client_rects() -> ??;
 
     pub fn get_elements_by_class_name(&self, name:&str) -> Vec<Element> {
-        
+        self.query_selector_all(&QueryClass(
+            name.to_string()
+        )).unwrap()
     }
 
-    pub fn get_elements_by_tag_name(&self, name:&str) -> Vec<Node> {
-        self.0.borrow().children.iter().filter_map(|node|{
-            if node.node_name() == name {
-                Some(node.node())
-            } else {
-                None
-            }
-        }).collect()
+    pub fn get_elements_by_tag_name(&self, name:&str) -> Vec<Element> {
+        self.query_selector_all(&QueryName{
+            namespace: None,
+            tag_name: name.to_string()
+        }).unwrap()
     }
 
     //ToDo:pub fn get_html(&self, shadow_root:Option<bool>) -> String
 
     pub fn has_attribute(&self, name:&str) -> bool {
-        for att in &self.0.borrow().attributes {
-            if att.key() == name {
+        for att in self.0.borrow().attributes() {
+            if att.name() == name {
                 return true;
             }
         }
@@ -388,9 +404,11 @@ impl Element {
     }
 
     pub fn has_attributes(&self, list:&[impl ToString]) -> bool {
-        for into in list {
-            if !self.has_attribute(&into.to_string()) {
-                return false;
+        let list: HashSet<String> = list.iter().map(|s|s.to_string()).collect();
+
+        for att in self.0.borrow().attributes() {
+            if !list.contains(att.name()) {
+                return false
             }
         }
 
@@ -399,59 +417,68 @@ impl Element {
 
     //ToDo: pub fn has_pointer_capture(&self, pointer_id) -> bool;
 
-    pub fn insert_adjasent_element(&self, pos:InsertPosition, element:&Element) -> Result<(), NodeError> {
+    pub fn insert_adjasent_element(&mut self, pos:InsertPosition, element:&Element) -> Result<(), NodeError> {
         match pos {
             InsertPosition::BeforeBegin => self.before(&[element]),
             InsertPosition::AfterEnd => self.after(&[element]),
             InsertPosition::BeforeEnd => {
-                self.append(&[element]);
-                Ok(())
+                self.append(&[element])
             },
             InsertPosition::AfterBegin => {
-                self.prepend(&[element]);
-                Ok(())
+                self.prepend(&[element])
             }
         }
     }
 
-    pub fn insert_adjasent_html(&self, pos:InsertPosition, html: &str) -> Result<(), NodeError> {
+    pub fn insert_adjasent_html(&mut self, pos:InsertPosition, html: &str) -> Result<(), NodeError> {
         todo!("Implment html")
     }
 
-    pub fn insert_adjasent_text(&self, pos:InsertPosition, text: &str) -> Result<(), NodeError> {
+    pub fn insert_adjasent_text(&mut self, pos:InsertPosition, text: &str) -> Result<(), NodeError> {
+        let text = self.0.doc.create_text_node(text);
+
         match pos {
-            InsertPosition::BeforeBegin => self.before(&[Text::new(text)]),
-            InsertPosition::AfterEnd => self.after(&[Text::new(text)]),
+            InsertPosition::BeforeBegin => self.before(&[text]),
+            InsertPosition::AfterEnd => self.after(&[text]),
             InsertPosition::BeforeEnd => {
-                self.append(&[Text::new(text)]);
-                Ok(())
+                self.append(&[text])
             },
             InsertPosition::AfterBegin => {
-                self.prepend(&[Text::new(text)]);
-                Ok(())
+                self.prepend(&[text])
             }
         }
     }
 
-    pub fn matches(&self, query:&str) -> bool {
-        todo!("Implement css-query string")
+    pub fn matches<T: IntoQuery>(&self, query:&T) -> bool {
+        match query.parse() {
+            Ok(query) => query.matches(self),
+            Err(_) => false
+        }
     }
 
-    pub fn move_before(&self, node:&impl IntoNode, reference:&impl IntoNode) {
-        
+    pub fn move_before(&self, node:&impl IntoNode, reference:&impl IntoNode) -> Result<(), NodeError> {
+        append_parrent_helper(&mut node.node(), &[reference], false, Some(self))
     }
 
-    pub fn prepend(&self, list:&[impl IntoNode]) {
-        let mut inner = self.0.borrow_mut();
-        let mut new_list: LinkedList<Node> = list.iter()
-            .map(|n|n.node())
-            .collect();
-
-        new_list.append(&mut inner.children);
-        inner.children = new_list
+    pub fn prepend(&self, list:&[impl IntoNode]) -> Result<(), NodeError> {
+        append_parrent_helper(&mut self.node(), list, false, None)
     }
 
-    
+    pub fn query_selector<T: IntoQuery>(&self, query:&T) -> Result<Option<Element>, QueryParseError> {
+        Ok(
+            query.parse()?
+                .query(self.clone())
+                .next()
+        )
+    }
+
+    fn query_selector_all<T: IntoQuery>(&self, query:&T) -> Result<Vec<Element>, QueryParseError> {
+        Ok(
+            query.parse()?
+                .query(self.clone())
+                .collect()
+        )
+    }
 }
 
 
@@ -459,11 +486,6 @@ impl Element {
 
 
 /*
-    
-    
-    
-    fn query_selector(&self, query:String) -> Option<Node>;
-    fn query_selector_all(&self, query:String) -> LinkedList<Node>;
     fn remove(&mut self);
     fn replace_children(&mut self, list: &[&Node]);
     fn replace_with(&mut self, list:&[&Node]);
@@ -501,35 +523,46 @@ impl Element {
         }
  */
 
-fn append_parrent_helper(child:&mut Element, list: &[impl IntoNode], after:bool) -> Result<(), NodeError> {
-    let inner = child.0.borrow_mut(); 
+fn append_parrent_helper(parrent:&mut Node, list: &[impl IntoNode], after:bool, child:Option<&Element>) -> Result<(), NodeError> {
+    let mut index:Option<usize>;
+    
+    if let Some(child) = child{
+        index = None;
 
-    if let Some(parrent) = inner.parrent() {
-        let mut parrent = parrent.0.borrow_mut();
-        let children = parrent.children_mut().unwrap();
-
-        let mut index:Option<usize> = None;
-        for (i, node) in children.iter().enumerate() {
-            if node.is_same_node(child) {
-                index = Some(i);
+        for (i, node) in parrent.0.children().enumerate() {
+            if node.node().is_same_node(child) {
+                if after {
+                    index = Some(i+1);
+                } else {
+                    index = Some(i);
+                }
                 break;
             }
         }
-        let mut index = index.expect("Unable to find self in parrent!");
-        if after {
-            index += 1;
-        }
+    } else {
 
-        let mut tail = children.split_off(index as usize);
-        children.append(&mut list.iter()
-            .map(|n|n.node())
-            .collect()
-        );
-        children.append(&mut tail);
+        if after {
+            index = Some(parrent.0.children().len())
+        } else {
+            index = Some(0)
+        }
+    }
+        
+    
+    
+    if let Some(index) = index {
+        unsafe {
+            parrent.0.borrow_mut().add_children(
+                &list.iter()
+                    .map(|n|n.node())
+                    .collect::<Vec<Node>>(),
+                Some(index)
+            )?
+        }
 
         Ok(())
     } else {
-        Err(NodeError::NoParrent)
+        Err(NodeError::InvalidChild)
     }
 }
 
