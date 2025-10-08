@@ -3,10 +3,16 @@ use std::{
     collections::LinkedList
 };
 use crate::component::{
-    attributes::AttributeData, document::DocumentData, element::ElementData, node::{
+    attributes::AttributeData,
+    document::DocumentData,
+    element::ElementData,
+    node::{
         Node,
         NodeError
-    }, other::*, AttributeIterator, ChildIterator
+    },
+    other::*,
+    AttributeIterator,
+    ChildIterator
 };
 
 #[allow(unused_variables)]
@@ -14,13 +20,13 @@ pub trait NodeInternalData {
     fn children(&self) -> ChildIterator {
         ChildIterator::empty()
     }
-    fn add_child(&mut self, child:Node, index: Option<usize>) -> Result<(), NodeError>{
+    fn add_children(&mut self, child:&[Node], index:Option<usize>) -> Result<(), NodeError>{
         Err(NodeError::NoDescendents)
     }
     fn remove_child(&mut self, index:usize) -> Result<(), NodeError> {
         Err(NodeError::NoDescendents)
     }
-    fn set_children(&mut self, list:  &[Node]) -> Result<(), NodeError>{
+    fn set_children(&mut self, list: &[Node]) -> Result<(), NodeError>{
         Err(NodeError::NoDescendents)
     }
 
@@ -46,6 +52,7 @@ pub trait NodeInternalData {
     }
     
     fn parrent(&self) -> Option<&Node>;
+    fn parrent_mut(&mut self) -> Option<&mut Node>;
     fn set_parrent(&mut self, parrent: Option<&Node>);
 }
 
