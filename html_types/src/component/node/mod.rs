@@ -168,7 +168,7 @@ impl Node {
             }
 
             child.0.borrow_mut().set_parrent(Some(self));
-            self.0.borrow_mut().add_child(child.node(), None)?;
+            self.0.borrow_mut().add_children(&[child], None)?;
         }
         
 
@@ -221,7 +221,7 @@ impl Node {
                 }
 
                 child.0.borrow_mut().set_parrent(Some(&parrent));
-                parrent.0.borrow_mut().add_child(child.node(), Some(index))?;
+                parrent.0.borrow_mut().add_children(&[child], Some(index))?;
             }
 
             Ok(())
@@ -282,6 +282,7 @@ fn find_child_helper(parrent: &Node, child:&Node) -> Result<Option<(Node, usize)
 pub enum NodeError {
     NoParrent,
     NoDescendents,
+    InvalidChild
 }
 
 impl std::fmt::Debug for NodeError {
@@ -289,6 +290,7 @@ impl std::fmt::Debug for NodeError {
         match self {
             Self::NoParrent => write!(f, "Node does not have a parrent element to access!"),
             Self::NoDescendents => write!(f, "Node does not have the ability to take descendents!"),
+            Self::InvalidChild => write!(f, "Reference Node is not a child of parrent node!")
         }
     }
 }

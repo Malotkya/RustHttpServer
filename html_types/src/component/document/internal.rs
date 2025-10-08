@@ -53,14 +53,14 @@ impl PartialEq for DocumentData {
 impl NodeInternalData for Rc<DocumentData> {
     StaticName!("html");
 
-    fn children(&self) -> ChildIterator {
+    fn children<'a>(&'a self) -> ChildIterator<'a> {
         ChildIterator::doc(
             self.children.iter(),
             &self.doc
         )
     }
 
-    fn attributes(&self) -> AttributeIterator {
+    fn attributes<'a>(&'a self) -> AttributeIterator<'a> {
         AttributeIterator::doc(
             self.children.iter(),
             &self.doc
@@ -68,6 +68,10 @@ impl NodeInternalData for Rc<DocumentData> {
     }
     
     fn parrent(&self) -> Option<&Node> {
+        None
+    }
+
+    fn parrent_mut(&mut self) -> Option<&mut Node> {
         None
     }
 
