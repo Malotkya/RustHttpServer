@@ -53,11 +53,11 @@ impl NodeInternalData for ElementData {
         self.namespace.as_ref().map(|v|v.value())
     }
 
-    fn attributes(&self) -> AttributeIterator {
+    fn attributes<'a>(&'a self) -> AttributeIterator<'a> {
         AttributeIterator::new(self.children.iter())
     }
 
-    fn children(&self) -> ChildIterator {
+    fn children<'a>(&'a self) -> ChildIterator<'a> {
         if self.is_void() {
             ChildIterator::empty()
         } else {

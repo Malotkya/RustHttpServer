@@ -1,6 +1,6 @@
 macro_rules! DefaultChildrenAccess {
     () => {
-        fn children(&self) -> $crate::component::ChildIterator {
+        fn children<'a>(&'a self) -> $crate::component::ChildIterator<'a> {
             $crate::component::ChildIterator::new(self.children.iter())
         }
 
@@ -51,7 +51,7 @@ macro_rules! DefaultChildrenAccess {
             Ok(())
         }
 
-        fn attributes(&self) -> $crate::component::AttributeIterator {
+        fn attributes<'a>(&'a self) -> $crate::component::AttributeIterator<'a> {
             $crate::component::AttributeIterator::new(self.children.iter())
         }
 

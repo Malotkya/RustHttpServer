@@ -17,7 +17,7 @@ use crate::component::{
 
 #[allow(unused_variables)]
 pub trait NodeInternalData {
-    fn children(&self) -> ChildIterator {
+    fn children<'a>(&'a self) -> ChildIterator<'a> {
         ChildIterator::empty()
     }
     fn add_children(&mut self, child:&[Node], index:Option<usize>) -> Result<(), NodeError>{
@@ -30,7 +30,7 @@ pub trait NodeInternalData {
         Err(NodeError::NoDescendents)
     }
 
-    fn attributes(&self) -> AttributeIterator {
+    fn attributes<'a>(&'a self) -> AttributeIterator<'a> {
         AttributeIterator::empty()
     }
 
