@@ -4,15 +4,25 @@ macro_rules! DefaultChildrenAccess {
             $crate::component::ChildIterator::new(self.children.iter())
         }
 
-        fn add_child(&mut self, child:Node, index: Option<usize>) -> Result<(), NodeError> {
-            if let Some(index) = index {
-                let mut tail = self.children.split_off(index);
-                self.children.push_back(child);
-                self.children.append(&mut tail);
-            } else {
-                self.children.push_back(child);
-            }
+        fn add_children(&mut self, list:&[Node], index:Option<usize>) -> Result<(), NodeError> {
+            let length = self.children.len();
+            let index = index.unwrap_or(length);
 
+            let mut new_list:std::collections::LinkedList<Node> = list.iter()
+                .map(|n|n.node())
+                .collect();
+
+            if index == 0 {
+                new_list.append(&mut self.children);
+                self.children = new_list;
+            } else if index >= length {
+                self.children.append(&mut new_list);
+            } else {
+                let mut tail = self.children.split_off(index);
+                self.children.append(&mut new_list);
+                self.children.append(&mut tail);
+            }
+            
             Ok(())
         }
 
@@ -59,6 +69,10 @@ macro_rules! DefaultParrentAccess {
     () => {
         fn parrent(&self) -> Option<&Node> {
             self.parrent.as_ref()
+        }
+
+        fn parrent_mut(&mut self) -> Option<&mut Node> {
+            self.parrent.as_mut()
         }
 
         fn set_parrent(&mut self, parrent:Option<&Node>) {
