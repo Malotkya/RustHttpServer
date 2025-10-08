@@ -96,7 +96,7 @@ impl QueryFilter for QueryParts {
 }
 
 impl QueryParts {
-    pub fn query<'a>(&'a self, element:Element) -> QueryPartsIterator<'a> {
+    pub(crate) fn query<'a>(&'a self, element:Element) -> QueryPartsIterator<'a> {
         CombinatorIterator::new(&self.combinator, element)
             .filter(Box::new(|e|self.filter(e)))
     }
@@ -108,8 +108,14 @@ pub struct SubQuery {
 }
 
 impl SubQuery {
-    fn query(&self, element:Element) -> SubQueryIterator {
+    fn query<'a>(&'a self, element:Element) -> SubQueryIterator<'a> {
         SubQueryIterator::new(&self.parts, element)
+    }
+
+    fn matches(&self, element:&Element) -> bool {
+        self.parts.first()
+            .map(|part|part.filter(element))
+            .unwrap_or(false)
     }
 }
 
@@ -171,7 +177,7 @@ pub struct Query {
 }
 
 impl Query {
-    pub fn query(&self, element:Element) -> QueryIterator {
+    pub fn query<'a>(&'a self, element:Element) -> QueryIterator<'a> {
         let mut it = self.queue.iter();
         let current = it.next().map(|sub_query|{
             sub_query.query(element.clone())
@@ -180,6 +186,12 @@ impl Query {
         QueryIterator {
             it, current, element
         }
+    }
+
+    pub fn matches(&self, element:&Element) -> bool {
+        self.queue.front()
+            .map(|sub|sub.matches(element))
+            .unwrap_or(false)
     }
 
     pub fn from(value:&str) -> Self {
