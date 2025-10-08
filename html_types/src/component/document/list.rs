@@ -102,7 +102,7 @@ impl NodeArray {
     pub fn get(&self, mut section:usize, index:usize) -> Option<&ListItem> {
         let mut it = self.0.iter();
 
-        while section >= 0 && let Some(next) = it.next() {
+        while let Some(next) = it.next() {
             if section == 0 {
                 return next.get(index);
             } else {
