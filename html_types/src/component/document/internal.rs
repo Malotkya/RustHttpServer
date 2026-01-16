@@ -100,6 +100,18 @@ impl DocumentItemRef {
         }
     }
 
+    pub fn new_ptr(doc: &Document, item: *const ListItem) -> Self {
+        let data = unsafe { (*item).data.inner() } as *const dyn NodeInternalData;
+
+        Self {
+            doc: doc.clone(),
+            item: item as *mut ListItem,
+            data: Box::new(
+                data as *mut dyn NodeInternalData
+            )
+        }
+    }
+
     pub fn node_data(&self) -> &NodeData {
         unsafe{ &(*self.item).data }
     }

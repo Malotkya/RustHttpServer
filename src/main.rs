@@ -1,6 +1,7 @@
 pub use http::{
     types::{Request, Response, ErrorRequest},
-    builder::{router, server}
+    builder::{router, server},
+    types::*
 };
 
 #[router(path="/Hello/:Name")]

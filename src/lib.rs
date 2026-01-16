@@ -1,4 +1,6 @@
 #![feature(str_from_raw_parts)]
+#![allow(unused_imports)]
+
 use http_types::{RequestBuilder};
 use async_lib::{
     io::AsyncRead,
@@ -13,6 +15,9 @@ mod protocol;
 pub(crate) use protocol::*;
 mod server;
 
+mod html {
+    pub use html_types::*;
+}
 
 pub trait Router {
     fn handle(&self, req:&mut RequestBuilder<TcpStream>)

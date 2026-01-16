@@ -1,4 +1,9 @@
 use std::collections::LinkedList;
+use crate::component::{
+    document::DocumentItemRef,
+    element::Element
+};
+
 use super::{
     node::*
 };
@@ -64,6 +69,26 @@ NodeType!(
         };
     )
 );
+
+impl TryFrom<&Element> for DocumentFragment {
+    type Error = &'static str;
+
+    fn try_from(value: &Element) -> Result<Self, Self::Error> {
+        match value.node().0.node_data() {
+            NodeData::DocumentFragment(inner) => {
+                let ptr = inner as *const DocumentFragmentData;
+                Ok(Self(
+                    DocumentItemRef::new_ptr(
+                        &value.0.doc,
+                        value.0.item
+                    ),
+                    ptr
+                ))
+            },
+            _ => Err("Unable to convert Element to DocumentFragment!")
+        }
+    }
+}
 
 NodeType!(
     NodeData::CdataSection = CdataSection();

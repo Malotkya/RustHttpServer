@@ -121,7 +121,9 @@ BuildPsudoClass!(
     FullScreen: browser_only = "fullscreen",
     Future: browser_only = "future",
     HasSlotted: has_sloted = "has-slotted",
-    Has(query: Query): has = "has"
+    Has(query: Query): has = "has",
+    Host: host = "host"
+    //Heading not supported by browswers yet
     /*Hover: browser_only
     InRange,
     Indeterminate,

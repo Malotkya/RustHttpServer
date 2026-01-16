@@ -2,6 +2,7 @@ use crate::component::{
     attributes::{TextDirection, ToAttributeValue},
     element::Element,
     node::IntoNode,
+    other::DocumentFragment
 };
 use super::{
     IntoQuery, Query,
@@ -180,4 +181,8 @@ pub(crate) fn has(node:&Element, query:&Query) -> bool {
         .ok()
         .flatten()
         .is_some()
+}
+
+pub(crate) fn host(node:&Element) -> bool {
+    TryInto::<DocumentFragment>::try_into(node).is_ok()
 }
