@@ -1,7 +1,4 @@
-#![feature(box_vec_non_null)]
 #![feature(associated_type_defaults)]
-#![feature(maybe_uninit_slice)]
-#![feature(trait_alias)]
 #![feature(async_iterator)]
 #![allow(dead_code)]
 
