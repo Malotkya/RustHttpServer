@@ -1,6 +1,7 @@
 use crate::{Headers, HttpError, HttpStatus};
 use util::json::{JsonValue, stringify};
 use std::{collections::LinkedList, fmt};
+use html::Node;
 
 pub enum Chunk{
     Owned(Vec<u8>),
@@ -83,7 +84,7 @@ impl Response {
         
     }
 
-    pub fn http(&mut self, http:String) ->Result<&Self, &'static str> {
+    pub fn http<N:Node>(&mut self, http:N) ->Result<&Self, &'static str> {
         if self.sent {
             Err("Response has already been sent!")
         } else if let Some(header) = self.headers.get("Content-Type")
@@ -92,7 +93,7 @@ impl Response {
         } else {
             self.headers.set("Content-Type", "application/html");
             self.body.push_back(
-                Chunk::String(http)
+                Chunk::String(http.stringify())
             );
             Ok(self)
         }

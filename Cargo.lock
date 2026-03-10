@@ -724,6 +724,7 @@ version = "0.1.0"
 dependencies = [
  "async_lib",
  "chrono",
+ "html",
  "http_macro",
  "httpdate",
  "lazy_static",
