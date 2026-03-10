@@ -1,4 +1,4 @@
-use http_types::{RequestBuilder, Response};
+use http_core::{RequestBuilder, Response};
 use async_lib::{
     net::{TcpStream, TcpListener},
     executor::*

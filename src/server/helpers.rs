@@ -1,4 +1,4 @@
-use http_types::{Response, Version, HttpError, HttpErrorKind, RequestBuilder};
+use http_core::{Response, Version, HttpError, HttpErrorKind, RequestBuilder};
 use async_lib::{
     io::{AsyncRead, Result},
     net::TcpStream

@@ -1,13 +1,13 @@
 #![feature(str_from_raw_parts)]
 #![allow(unused_imports)]
 
-use http_types::{RequestBuilder};
+use http_core::{RequestBuilder};
 use async_lib::{
     io::AsyncRead,
     net::TcpStream
 };
 
-pub use http_types::{
+pub use http_core::{
     HttpError, HttpErrorKind, Result
 };
 
@@ -16,7 +16,7 @@ pub(crate) use protocol::*;
 mod server;
 
 mod html {
-    pub use html_types::*;
+    pub use html::*;
 }
 
 pub trait Router {
@@ -25,19 +25,19 @@ pub trait Router {
 }
 
 pub mod builder {
-    pub use http_types::RequestBuilder;
+    pub use http_core::RequestBuilder;
     pub use super::server::*;
     pub use http_macro::*;
 }
 
 pub mod json {
-    pub use http_types::{
-        Json, JsonError, JsonRef, JsonValue
+    pub use util::json::{
+        JsonError, JsonRef, JsonValue
     };
 }
 
 pub mod types {
-    pub use http_types::{
+    pub use http_core::{
         HttpHeader, Headers, HeaderName, HeaderValue, Version,
         Method, Path, Request, ErrorRequest, Response, HttpStatus, Url
     };
@@ -70,8 +70,6 @@ pub mod promise {
 pub mod executor {
     pub use async_lib::executor::*;
 }
-
-
 
 pub(crate) fn log(req: &RequestBuilder<impl AsyncRead>, resp: &types::Response) {
     println!("{:?} {:?}", req, resp);

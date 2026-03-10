@@ -6,7 +6,7 @@
 /// [BODY]
 /// 
 use std::fmt;
-use http_types::{RequestBuilder, Method, Headers, ToUrl};
+use http_core::{RequestBuilder, Method, Headers, ToUrl};
 use async_lib::io::AsyncRead;
 use super::types::*;
 

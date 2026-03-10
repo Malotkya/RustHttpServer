@@ -1,4 +1,4 @@
-use http_types::{Version, Response};
+use http_core::{Version, Response};
 use async_lib::io::{AsyncWrite, Result};
 
 pub async fn write_response<S>(resp:Response, ver:Version, stream:&mut S) -> Result<()> where S: AsyncWrite {
