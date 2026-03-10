@@ -710,25 +710,25 @@ name = "http"
 version = "0.1.0"
 dependencies = [
  "async_lib",
+ "html",
+ "http_core",
+ "http_macro",
+ "lazy_static",
+ "regex",
+ "util",
+]
+
+[[package]]
+name = "http_core"
+version = "0.1.0"
+dependencies = [
+ "async_lib",
  "chrono",
  "http_macro",
  "httpdate",
  "lazy_static",
  "regex",
  "urlencoding",
- "util",
-]
-
-[[package]]
-name = "http-server"
-version = "0.1.0"
-dependencies = [
- "async_lib",
- "html",
- "http",
- "http_macro",
- "lazy_static",
- "regex",
  "util",
 ]
 

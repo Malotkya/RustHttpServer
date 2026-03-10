@@ -1,11 +1,11 @@
 [package]
-name = "http-server"
+name = "http"
 version = "0.1.0"
 edition = "2024"
 
 [dependencies]
 http_macro = { path = "http_macro" }
-http = { path = "http" }
+http_core = { path = "http_core" }
 async_lib  = { path = "async_lib" }
 html = { path = "html" }
 util = { path = "util" }
