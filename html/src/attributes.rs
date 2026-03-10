@@ -1,5 +1,5 @@
 use std::{fmt, string::String};
-use crate::node::Node;
+use crate::node::NodeData;
 
 #[derive(Clone, PartialEq)]
 pub enum AttributeValue {
@@ -157,15 +157,15 @@ impl Attribute {
     }
 }
 
-impl Into<Node> for Attribute {
-    fn into(self) -> Node {
-        Node::Attribute(self.name, self.value)
+impl Into<NodeData> for Attribute {
+    fn into(self) -> NodeData {
+        NodeData::Attribute(self.name, self.value)
     }
 }
 
-impl Into<Node> for &Attribute {
-    fn into(self) -> Node {
-        Node::Attribute(
+impl Into<NodeData> for &Attribute {
+    fn into(self) -> NodeData {
+        NodeData::Attribute(
             self.name.clone(),
             self.value.clone()
         )

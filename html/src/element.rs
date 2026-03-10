@@ -4,12 +4,35 @@ use std::{
     slice::{Iter, IterMut}
 };
 use crate::{
+    Node, NodeMut,
     attributes::{Attribute, AttributeValue},
-    node::Node
+    node::NodeData
 };
 pub use html_macros::create_element;
 
 macro_rules! all_element_function{
+    ( node: $( $func:item )+) => {
+        impl Node for Element{
+            $( $func )+
+        }
+
+        impl<'a> Node for ElementRef<'a> {
+           $( $func )+
+        }
+
+        impl<'a> Node for ElementMutRef<'a> {
+            $( $func )+
+        }
+    };
+    ( node_mut: $( $func:item )+) => {
+        impl NodeMut for Element {
+            $( $func )+
+        }
+
+        impl<'a> NodeMut for ElementMutRef<'a> {
+            $( $func )+
+        }
+    };
     ( mut: $( $func:item )+ ) => {
         impl Element {
             $( $func )+
@@ -34,13 +57,13 @@ macro_rules! all_element_function{
     };
 }
 
-pub struct Element(pub(crate) Node);
-pub struct ElementRef<'a>(&'a Node);
-pub struct ElementMutRef<'a>(&'a mut Node);
+pub struct Element(pub(crate) NodeData);
+pub struct ElementRef<'a>(pub(crate) &'a NodeData);
+pub struct ElementMutRef<'a>(pub(crate) &'a mut NodeData);
 
 impl Element {
     pub fn new(name:&str, attributes:Vec<Attribute>, children:Vec<Element>) -> Self {
-        Self(Node::Element(
+        Self(NodeData::Element(
             name.to_string(),
             false,
             children.into_iter()
@@ -52,7 +75,7 @@ impl Element {
     }
 
     pub fn new_void(name:&str, attributes:Vec<Attribute>) -> Self {
-        Self(Node::Element(
+        Self(NodeData::Element(
             name.to_string(),
             true,
             attributes.into_iter()
@@ -62,60 +85,76 @@ impl Element {
     }
 }
 
-all_element_function!(
-    pub fn name(&self) -> &str {
+all_element_function!( node: 
+    fn name(&self) -> &str {
         return self.0.name();
     }
 
+    fn children(&self) -> impl Iterator<Item = ElementRef<'_>> {
+        ChildIter(self.0.children())
+    }
+
+    fn get_content(&self) -> String {
+        self.0.get_content()
+            .collect::<Vec<&str>>()
+            .join("")
+    }
+
+    fn get_inner_text(&self) -> String {
+        self.0.get_text()
+            .collect::<Vec<&str>>()
+            .join("")
+    }
+
+    fn stringify(&self) -> String {
+        self.0.to_string()
+    }
+);
+
+all_element_function!(
     pub fn get_attribute(&self, name:&str) -> Option<&AttributeValue> {
         for child in self.0.children() {
-            if let Node::Attribute(child_name, value) = child {
+            if let NodeData::Attribute(child_name, value) = child {
                 if name == child_name {
-                    return Some(value);
+                    return Some(&value);
                 }
             }
         }
 
         None
     }
+);
 
-    pub fn get_inner_text(&self) -> String {
-        self.0.get_text()
-            .collect::<Vec<&str>>()
-            .join("")
+all_element_function!( node_mut:
+    fn append<E:Into<Element>>(&mut self, child:E) {
+        self.0.append(child.into().0);
     }
 
-    pub fn get_content(&self) -> String {
-        self.0.get_content()
-            .collect::<Vec<&str>>()
-            .join("")
+    fn remove<'b, R:Into<ElementRef<'b>>>(&mut self, child:R) {
+        self.0.remove(child.into().0);
     }
 
-    pub fn children(&self) -> ChildIter<'_> {
-        ChildIter(self.0.children())
+    fn clear(&mut self) {
+        self.0.clear();
+    } 
+
+    fn children_mut(&mut self) -> impl Iterator<Item = ElementMutRef<'_>> {
+        ChildIterMut(self.0.children_mut())
     }
 
-    pub fn stringify(&self) -> String {
-        self.0.to_string()
+    fn set_content<S:ToString>(&mut self, value:S) {
+        self.0.set_content(value);
+    }
+
+    fn set_inner_text<S:ToString>(&mut self, value:S) {
+        self.0.set_text(value);
     }
 );
 
 all_element_function!( mut:
-    pub fn append_child<E:Into<Element>>(&mut self, child:E) {
-        self.0.append(child.into().0);
-    }
-
-    pub fn remove_child<'b, R:Into<ElementRef<'b>>>(&mut self, child:R) {
-        self.0.remove(child.into().0);
-    }
-
-    pub fn clear_children(&mut self) {
-        self.0.clear();
-    } 
-
     pub fn get_attribute_mut(&mut self, name:&str) -> Option<&mut AttributeValue> {
         for child in self.0.children_mut() {
-            if let Node::Attribute(child_name, value) = child {
+            if let NodeData::Attribute(child_name, value) = child {
                 if name == child_name {
                     return Some(value);
                 }
@@ -159,21 +198,9 @@ all_element_function!( mut:
             })
         }
     }
-
-    pub fn set_inner_text<S:ToString>(&mut self, value:S) {
-        self.0.set_text(value);
-    }
-
-    pub fn set_content<S:ToString>(&mut self, value:S) {
-        self.0.set_content(value);
-    }
-
-    pub fn children_mut(&mut self) -> ChildIterMut<'_>{
-        ChildIterMut(self.0.children_mut())
-    }
 );
 
-pub struct ChildIter<'a>(Iter<'a, Node>);
+pub struct ChildIter<'a>(Iter<'a, NodeData>);
 
 impl<'a> Iterator for ChildIter<'a> {
     type Item = ElementRef<'a>;
@@ -189,7 +216,7 @@ impl<'a> Iterator for ChildIter<'a> {
     }
 }
 
-pub struct ChildIterMut<'a>(IterMut<'a, Node>);
+pub struct ChildIterMut<'a>(IterMut<'a, NodeData>);
 
 impl<'a> Iterator for ChildIterMut<'a> {
     type Item = ElementMutRef<'a>;
@@ -207,7 +234,7 @@ impl<'a> Iterator for ChildIterMut<'a> {
 
 impl<T:ToString> From<T> for Element {
     fn from(value: T) -> Self {
-        Self(Node::Text(value.to_string()))
+        Self(NodeData::Text(value.to_string()))
     }
 }
 

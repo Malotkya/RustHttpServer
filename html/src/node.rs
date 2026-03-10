@@ -8,14 +8,16 @@ use std::{
 use crate::attributes::AttributeValue;
 
 #[derive(Eq)]
-pub(crate) enum Node {
+pub(crate) enum NodeData {
     Comment(String),
     Text(String),
-    Element(String, bool, Vec<Node>),
+    Element(String, bool, Vec<NodeData>),
     Attribute(String, AttributeValue)
 }
 
-impl PartialEq for Node {
+
+
+impl PartialEq for NodeData {
     fn eq(&self, other: &Self) -> bool {
         match self {
             Self::Attribute(lhs, _) => if let Self::Attribute(rhs, _) = other {
@@ -33,7 +35,7 @@ impl PartialEq for Node {
     }
 }
 
-impl Node {
+impl NodeData {
     pub fn name(&self) -> &str {
         match self {
             Self::Comment(_) => "!",
@@ -57,8 +59,8 @@ impl Node {
         }
     }
 
-    pub fn append<N:Into<Node>>(&mut self, value:N) {
-        let value:Node = value.into();
+    pub fn append<N:Into<NodeData>>(&mut self, value:N) {
+        let value:NodeData = value.into();
 
         match self {
             Self::Comment(text) => text.push_str(
@@ -78,8 +80,8 @@ impl Node {
         }
     }
 
-    pub fn remove(&mut self, node:&Node) {
-        if let Node::Element(_, _, children) = self {
+    pub fn remove(&mut self, node:&NodeData) {
+        if let NodeData::Element(_, _, children) = self {
             children.retain(|n|n.ne(node))
         }
     }
@@ -93,14 +95,14 @@ impl Node {
         }
     }
 
-    pub fn children(&self) -> Iter<'_, Node> {
+    pub fn children(&self) -> Iter<'_, NodeData> {
         match self{
             Self::Element(_, _, list) => list.iter(),
             _ => Default::default()
         }
     }
 
-    pub fn children_mut(&mut self) -> IterMut<'_, Node> {
+    pub fn children_mut(&mut self) -> IterMut<'_, NodeData> {
         match self {
             Self::Element(_, _, list) => list.iter_mut(),
             _ => Default::default()
@@ -131,7 +133,7 @@ impl Node {
                 }
 
                 children.retain(|node|node.is_attribute());
-                children.push(Node::Text(value.to_string()));
+                children.push(NodeData::Text(value.to_string()));
             }
         }
     }
@@ -158,7 +160,7 @@ impl Node {
 pub(crate) enum TextIter<'a> {
     None,
     Single(SplitWhitespace<'a>, Option<&'a str>),
-    Multiple(Iter<'a, Node>, Option<SplitWhitespace<'a>>, Option<&'a str>)
+    Multiple(Iter<'a, NodeData>, Option<SplitWhitespace<'a>>, Option<&'a str>)
 }
 
 fn next_helper<'a, I:Iterator<Item = &'a str>>(it:&mut I, prev: &mut Option<&'a str>) -> Option<&'a str> {
@@ -194,7 +196,7 @@ impl<'a> Iterator for TextIter<'a> {
                 }
 
                 while let Some(next_node) = it.next() {
-                    if let Node::Text(str) = next_node {
+                    if let NodeData::Text(str) = next_node {
                         *opt = Some(str.split_whitespace());
                         *prev = Some(" ");
                         return self.next();
@@ -210,7 +212,7 @@ impl<'a> Iterator for TextIter<'a> {
 pub(crate) enum ContentIter<'a> {
     None,
     Single(Option<&'a str>),
-    List(Iter<'a, Node>, Option<Box<ContentIter<'a>>>)
+    List(Iter<'a, NodeData>, Option<Box<ContentIter<'a>>>)
 }
 
 impl<'a> Iterator for ContentIter<'a> {
@@ -240,7 +242,7 @@ impl<'a> Iterator for ContentIter<'a> {
 
 }
 
-impl fmt::Display for Node {
+impl fmt::Display for NodeData {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Attribute(name, value) => write!(f, "{}=\"{}\"", name, value),
@@ -279,9 +281,9 @@ impl fmt::Display for Node {
     }
 }
 
-impl<T:Into<AttributeValue>> From<T> for Node {
+impl<T:Into<AttributeValue>> From<T> for NodeData {
     fn from(value: T) -> Self {
-        Node::Text(value.into().to_string())
+        NodeData::Text(value.into().to_string())
     }
 }
 
