@@ -1,4 +1,5 @@
-use crate::{Headers, HttpError, HttpStatus, Json};
+use crate::{Headers, HttpError, HttpStatus};
+use util::json::{JsonValue, stringify};
 use std::{collections::LinkedList, fmt};
 
 pub enum Chunk{
@@ -97,7 +98,7 @@ impl Response {
         }
     }
 
-    pub fn json(&mut self, json:&Json) -> Result<&Self, &'static str> {
+    pub fn json(&mut self, json:&JsonValue) -> Result<&Self, &'static str> {
         if self.sent {
             Err("Response has already been sent!")
         } else if let Some(header) = self.headers.get("Content-Type")
@@ -106,7 +107,7 @@ impl Response {
         } else {
             self.headers.set("Content-Type", "application/json");
             self.body.push_back(
-                Chunk::String(json.stringify(None))
+                Chunk::String(stringify(json, None))
             );
             Ok(self)
         }
@@ -136,11 +137,11 @@ impl Response {
         }
     }
 
-    pub fn from_json(json:&Json) -> Self {
+    pub fn from_json(json:&JsonValue) -> Self {
         let mut headers = Headers::new();
         headers.set("Content-Type", "application/json");
         let mut body = LinkedList::new();
-        body.push_front(Chunk::String(json.stringify(None)));
+        body.push_front(Chunk::String(stringify(json, None)));
 
         Self {
             status: HttpStatus::Ok,

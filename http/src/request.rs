@@ -1,4 +1,5 @@
-use super::{Url, Headers, Method, Version, JsonValue, JsonRef, HttpError};
+use super::{Url, Headers, Method, Version, HttpError};
+use util::json::{JsonValue, JsonRef};
 use async_lib::{
     io::{AsyncRead, AsyncBufReader},
     net::TcpStream

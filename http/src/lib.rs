@@ -1,11 +1,8 @@
-#![feature(str_from_raw_parts)]
 
 mod error;
 pub use error::{HttpError, HttpErrorKind};
 mod headers;
 pub use headers::*;
-mod json;
-pub use json::*;
 mod method;
 pub use method::*;
 mod path;
