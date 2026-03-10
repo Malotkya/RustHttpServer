@@ -8,5 +8,6 @@ http_macro = { path = "http_macro" }
 http = { path = "http" }
 async_lib  = { path = "async_lib" }
 html_types = { path = "html_types" }
+util = { path = "util" }
 lazy_static = "1.4.0"
 regex = "1.10.5"
