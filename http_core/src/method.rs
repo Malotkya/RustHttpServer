@@ -18,31 +18,38 @@ pub enum Method {
     PATCH
 }
 
+fn valid_methods_from_string(str: &str)->Option<Method> {
+    match str.to_ascii_uppercase().as_str() {
+        "OPTIONS" =>
+            Some(Method::OPTIONS),
+        "GET" =>
+            Some(Method::GET),
+        "HEAD" => 
+            Some(Method::HEAD),
+        "POST" =>
+            Some(Method::POST),
+        "PUT" =>
+            Some(Method::PUT),
+        "DELETE" =>
+            Some(Method::DELETE),
+        "TRACE" =>
+            Some(Method::TRACE),
+        "CONNECT" =>
+            Some(Method::CONNECT),
+        "PATCH" => {
+            Some(Method::PATCH)
+        },
+        _ => None
+    }
+}
+
 #[allow(dead_code)]
 impl Method {
     pub fn from(str: &str)->Option<Method> {
-        match str.to_ascii_uppercase().as_str() {
-            "OPTIONS" =>
-                Some(Self::OPTIONS),
-            "GET" =>
-                Some(Self::GET),
-            "HEAD" => 
-                Some(Self::HEAD),
-            "POST" =>
-                Some(Self::POST),
-            "PUT" =>
-                Some(Self::PUT),
-            "DELETE" =>
-                Some(Self::DELETE),
-            "TRACE" =>
-                Some(Self::TRACE),
-            "CONNECT" =>
-                Some(Self::CONNECT),
-            "PATCH" => {
-                Some(Self::PATCH)
-            },
-            _ => None
-        }
+        let value = str.trim().to_ascii_uppercase();
+
+        valid_methods_from_string(&value)
+            .or(valid_methods_from_string(&value[1..])) //Attempt to remove occasional garbage byte.
     }
 
     pub fn to_str(&self) -> &'static str {
