@@ -40,6 +40,10 @@ impl InputParser {
     pub fn new(input:ParseStream) -> Result<Self, syn::Error>{
         let mut map:HashMap<String, syn::Lit> = HashMap::new();
 
+        if input.is_empty() {
+            return Ok(Self(map));
+        }
+
         loop {
             let key: syn::Ident = input.parse()?;
             let _: syn::Token![=] = input.parse()?;
@@ -60,5 +64,33 @@ impl InputParser {
     get_value!(String, Str, "string literal");
     get_value!(bool, Bool, "boolean");
     get_value!(u16, Int, "u16", |x: &syn::LitInt|x.base10_parse());
+    get_value!(usize, Int, "usize", |x: &syn::LitInt|x.base10_parse());
+}
 
+pub fn snake_case<Name:ToString>(name:Name) -> String {
+    let name = name.to_string();
+    let mut it = name.chars().flat_map(|c|{
+        if c.is_ascii_uppercase() {
+            vec!['_', c.to_ascii_lowercase()]
+        } else {
+            vec![c]
+        }
+    }).peekable();
+
+    if let Some(char) = it.peek() && *char == '_' {
+        it.next();
+    }
+
+    return it.collect()
+
+}
+
+pub fn is_snake_case(name:&syn::Ident) -> bool {
+    for c in name.to_string().chars() {
+        if c.is_uppercase() {
+            return false;
+        }
+    }
+
+    return true;
 }

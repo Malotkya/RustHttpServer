@@ -1,7 +1,22 @@
-use syn::parse::{Parse, ParseStream};
+use syn::parse::{Parse, ParseStream, Error};
 use syn::spanned::Spanned;
+use proc_macro2::{Span, TokenStream};
 
-pub(crate) struct HeaderArguments {
+fn duplicate_error(name: &str, span:Span) -> Error {
+    Error::new(
+        span,
+        format!("Duplicate function \"{}\"!", name)
+    )
+}
+
+fn missing_error(name: &str) -> Error {
+    Error::new(
+        Span::call_site(),
+        format!("Missing item \"{}\"!", name)
+    )
+}
+
+pub(crate) struct HeaderValue {
     item: syn::ItemStruct,
     new: syn::ItemFn,
     name: syn::Path,
@@ -10,17 +25,14 @@ pub(crate) struct HeaderArguments {
     parse: Option<syn::ItemFn>
 }
 
-fn duplicate_error(name: &str) -> String {
-    format!("Duplicate function \"{}\"!", name)
-}
-
-fn missing_error(name: &str) -> String {
-    format!("Missing item \"{}\"!", name)
-}
-
-impl Parse for HeaderArguments {
+impl Parse for HeaderValue {
     fn parse(input:ParseStream) -> syn::Result<Self> {
-        let item = input.parse::<syn::ItemStruct>()?;
+        let mut item = input.parse::<syn::ItemStruct>()?;
+        item.vis = syn::Visibility::Public(syn::token::Pub(item.span()));
+
+        item.fields.iter_mut().for_each(|field|{
+            field.vis = syn::Visibility::Public(syn::token::Pub(field.span()));
+        });
 
         if input.peek(syn::Token![;]) {
             input.parse::<syn::Token![;]>()?;
@@ -40,44 +52,44 @@ impl Parse for HeaderArguments {
                         if new.is_none() {
                             new = Some(func)
                         } else {
-                            return Err(syn::Error::new(
-                                func.sig.ident.span(),
-                                duplicate_error("new")
-                            ))
+                            return Err(duplicate_error(
+                                "new",
+                                func.sig.ident.span()
+                            ));
                         }
                     },
                     "from" => {
                         if from.is_none() {
                             from = Some(func)
                         } else {
-                            return Err(syn::Error::new(
-                                func.sig.ident.span(),
-                                duplicate_error("from")
-                            ))
+                            return Err(duplicate_error(
+                                "from",
+                                func.sig.ident.span()
+                            ));
                         }
                     },
                     "to_string" => {
                         if to_string.is_none() {
                             to_string = Some(func)
                         } else {
-                            return Err(syn::Error::new(
-                                func.sig.ident.span(),
-                                duplicate_error("to_string")
-                            ))
+                            return Err(duplicate_error(
+                                "to_string",
+                                func.sig.ident.span()
+                            ));
                         }
                     },
                     "parse" => {
                         if parse.is_none() {
                             parse = Some(func)
                         } else {
-                            return Err(syn::Error::new(
-                                func.sig.ident.span(),
-                                duplicate_error("parse")
-                            ))
+                            return Err(duplicate_error(
+                                "parse",
+                                func.sig.ident.span()
+                            ));
                         }
                     }
                     ident => {
-                        return Err(syn::Error::new(
+                        return Err(Error::new(
                             func.sig.ident.span(),
                             format!("Unknown funciton name: {}!", ident)
                         ))
@@ -89,7 +101,7 @@ impl Parse for HeaderArguments {
                 if name.is_none() {
                     name = Some(path);
                 } else {
-                    return Err(syn::Error::new(
+                    return Err(Error::new(
                         path.span(),
                         "Duplicate Header Name!"
                     ))
@@ -101,26 +113,68 @@ impl Parse for HeaderArguments {
             }
         }
 
+        
+
         Ok(Self{
             item,
-            new : new.ok_or_else(||syn::Error::new(
-                proc_macro2::Span::call_site(),
-                missing_error("new")
-            ))?,
-            name : name.ok_or_else(||syn::Error::new(
-                proc_macro2::Span::call_site(),
-                missing_error("name")
-            ))?,
-            from : from.ok_or_else(||syn::Error::new(
-                proc_macro2::Span::call_site(),
-                missing_error("from")
-            ))?,
-            to_string : to_string.ok_or_else(||syn::Error::new(
-                proc_macro2::Span::call_site(),
-                missing_error("to_string")
-            ))?,
+            new : new.ok_or(missing_error("new"))?,
+            name : name.ok_or(missing_error("name"))?,
+            from : from.ok_or(missing_error("from"))?,
+            to_string : to_string.ok_or(missing_error("to_string"))?,
             parse
         })
+    }
+}
+
+impl HeaderValue {
+    pub fn build(&self) -> TokenStream {
+        let item = &self.item;
+        let name = &self.name;
+        let new = &self.new;
+        let from = &self.from;
+        let to_string = &self.to_string;
+
+        let struct_name = &item.ident;
+        let impl_generics =  if item.generics.params.iter().count() == 0 {
+            None
+        } else {
+            Some(item.generics.clone())
+        };
+
+        let parse = self.parse.as_ref().map(|func| quote::quote!{
+            impl<'a> super::ParseType<'a> for #struct_name #impl_generics {
+                #func
+            }
+            
+        }).unwrap_or(quote::quote!());
+
+        let (from_lifetime, from_gen_impl) = append_lifetime(&item.generics);
+        let struct_generics = build_impl_generics(&item.generics).unwrap();
+
+        quote::quote!{
+            #item
+
+            #parse
+
+            impl #impl_generics #struct_name #struct_generics {
+                pub #new
+            }
+
+            impl #impl_generics super::HttpHeader for #struct_name #struct_generics {
+                fn name() -> super::HeaderName {
+                    #name
+                }
+            }
+
+            impl #from_gen_impl From<& #from_lifetime super::HeaderType<#from_lifetime>>
+                    for #struct_name #struct_generics {
+                #from
+            }
+
+            impl #impl_generics ToString for #struct_name #struct_generics {
+                #to_string
+            }
+        }
     }
 }
 
@@ -157,7 +211,7 @@ fn build_impl_generics(original: &syn::Generics) -> syn::Result<Option<syn::Gene
                 syn::TypeParam::from(t.ident.clone())
             )),
             syn::GenericParam::Const(c) => return Err(
-                syn::Error::new(
+                Error::new(
                     c.span(),
                     "Unable to parse const generics!"
                 )
@@ -177,57 +231,4 @@ fn build_impl_generics(original: &syn::Generics) -> syn::Result<Option<syn::Gene
         where_clause: None,
         params
     }))
-}
-
-pub fn build_header_type(input:proc_macro::TokenStream) -> proc_macro2::TokenStream {
-    let HeaderArguments{
-        mut item, new, name, from, to_string, parse
-    } = syn::parse(input).unwrap();
-
-    item.vis = syn::Visibility::Public(syn::token::Pub(item.span()));
-
-    item.fields.iter_mut().for_each(|field|{
-        field.vis = syn::Visibility::Public(syn::token::Pub(field.span()));
-    });
-
-    let struct_name = &item.ident;
-    let impl_generics =  if item.generics.params.iter().count() == 0 {
-        None
-    } else {
-        Some(item.generics.clone())
-    };
-    let (from_lifetime, from_gen_impl) = append_lifetime(&item.generics);
-    let struct_generics = build_impl_generics(&item.generics).unwrap();
-
-    let parse = parse.map(|func| quote::quote!{
-        impl<'a> super::ParseType<'a> for #struct_name #impl_generics {
-            #func
-        }
-        
-    }).unwrap_or(quote::quote!());
-
-    quote::quote!{
-        #item
-
-        #parse
-
-        impl #impl_generics #struct_name #struct_generics {
-            pub #new
-        }
-
-        impl #impl_generics super::HttpHeader for #struct_name #struct_generics {
-            fn name() -> super::HeaderName {
-                #name
-            }
-        }
-
-        impl #from_gen_impl From<& #from_lifetime super::HeaderType<#from_lifetime>>
-                for #struct_name #struct_generics {
-            #from
-        }
-
-        impl #impl_generics ToString for #struct_name #struct_generics {
-            #to_string
-        }
-    }
 }
