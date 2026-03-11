@@ -1,4 +1,10 @@
-use super::{Url, Headers, Method, Version, HttpError};
+use crate::{
+    url::Url,
+    headers::Headers,
+    method::Method,
+    version::Version,
+    error::HttpError
+};
 use util::json::{JsonValue, JsonRef};
 use async_lib::{
     io::{AsyncRead, AsyncBufReader},

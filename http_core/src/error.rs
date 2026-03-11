@@ -1,6 +1,10 @@
 use std::fmt;
 
-use crate::HttpStatus;
+use crate::{
+    status::HttpStatus,
+    result::Result,
+    response::Response
+};
 
 #[derive(Clone)]
 pub struct HttpError{
@@ -13,6 +17,23 @@ impl HttpError {
         Self{
             kind,
             message: String::from(message)
+        }
+    }
+
+    pub fn send(self) -> Result<Response> {
+        Err(Box::new(self))
+    }
+}
+
+pub trait ValidHttpError {
+    fn err(&self) -> HttpError;
+}
+
+impl<Err:ToString> ValidHttpError for Err {
+    fn err(&self) -> HttpError {
+        HttpError {
+            kind: HttpErrorKind::InternalServerError,
+            message: self.to_string()
         }
     }
 }
@@ -76,6 +97,15 @@ pub enum HttpErrorKind {
 }
 
 impl HttpErrorKind {
+    pub fn send(self) -> Result<Response> {
+        let message = self.as_str().to_string();
+
+        Err(Box::new(HttpError{
+            kind: self,
+            message
+        }))
+    }
+
     pub fn as_str(&self)->&'static str {
         match self {
             //Redirection Messages

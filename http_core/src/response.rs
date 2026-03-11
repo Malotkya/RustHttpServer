@@ -1,7 +1,26 @@
-use crate::{Headers, HttpError, HttpStatus};
+use crate::{
+    headers::Headers,
+    error::HttpError,
+    status::HttpStatus,
+    result::Result
+};
 use util::json::{JsonValue, stringify};
 use std::{collections::LinkedList, fmt};
 use html::Node;
+
+enum ResponseError {
+    ResponseSent,
+    HeadersSent,
+}
+
+impl fmt::Display for ResponseError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::ResponseSent => write!(f, "Response has already been sent!"),
+            Self::HeadersSent => write!(f, "Headers have already been sent!")
+        }
+    }
+}
 
 pub enum Chunk{
     Owned(Vec<u8>),
@@ -74,9 +93,9 @@ impl Response {
         }
     }
 
-    pub fn write<T>(&mut self, data:T) -> Result<&Self, &'static str> where T: Into<Chunk> {
+    pub fn write<T>(&mut self, data:T) -> Result<&Self> where T: Into<Chunk> {
         if self.sent {
-            Err("Response has already been sent!")
+            Err(Box::new(ResponseError::ResponseSent))
         } else {
             self.body.push_back(data.into());
             Ok(self)
@@ -84,12 +103,12 @@ impl Response {
         
     }
 
-    pub fn http<N:Node>(&mut self, http:N) ->Result<&Self, &'static str> {
+    pub fn http<N:Node>(&mut self, http:N) ->Result<&Self> {
         if self.sent {
-            Err("Response has already been sent!")
+            Err(Box::new(ResponseError::ResponseSent))
         } else if let Some(header) = self.headers.get("Content-Type")
             && let Ok(value) = header.ref_str() && value != "application/html" {
-            Err("Content-Type header is already set!")
+            Err(Box::new(ResponseError::HeadersSent))
         } else {
             self.headers.set("Content-Type", "application/html");
             self.body.push_back(
@@ -99,12 +118,12 @@ impl Response {
         }
     }
 
-    pub fn json(&mut self, json:&JsonValue) -> Result<&Self, &'static str> {
+    pub fn json(&mut self, json:&JsonValue) -> Result<&Self> {
         if self.sent {
-            Err("Response has already been sent!")
+            Err(Box::new(ResponseError::ResponseSent))
         } else if let Some(header) = self.headers.get("Content-Type")
             && let Ok(value) = header.ref_str() && value != "application/json" {
-            Err("Content-Type header is already set!")
+            Err(Box::new(ResponseError::HeadersSent))
         } else {
             self.headers.set("Content-Type", "application/json");
             self.body.push_back(
@@ -164,6 +183,10 @@ impl Response {
             body,
             sent: false
         }
+    }
+
+    pub fn send(self) -> Result<Response> {
+        Ok(self)
     }
 }
 
