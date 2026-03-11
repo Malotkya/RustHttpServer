@@ -19,14 +19,9 @@ async fn error_handler(mut req:ErrorRequest) -> Response {
     Response::from_error(req.param)
 }
 
-#[server(port=8080)]
+#[server(port=8080,threads=1)]
 struct ServerName ( 
     Home,
     TestName,
     error_handler
 );
-
-fn main() {
-    ServerName::start(1).unwrap();
-}
- 
