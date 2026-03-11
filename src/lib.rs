@@ -1,7 +1,7 @@
 #![feature(str_from_raw_parts)]
 #![allow(unused_imports)]
 
-use http_core::{RequestBuilder};
+use http_core::{Request, RequestBuilder};
 use async_lib::{
     io::AsyncRead,
     net::TcpStream
@@ -19,10 +19,24 @@ mod html {
     pub use html::*;
 }
 
-pub trait Router {
-    fn handle(&self, req:&mut RequestBuilder<TcpStream>)
-        -> impl Future<Output = std::result::Result<Option<types::Response>, HttpError>>;
+pub trait Layer<Param> {
+    fn new() -> Self;
+    fn match_path(&self, pathname:&str) -> Option<Param>;
+    fn handler(&self, request: Request<Param>) -> impl Future<Output = http_core::Result>;
 }
+
+pub trait Router<Param>: Layer<Param> {
+
+    #[allow(async_fn_in_trait)]
+    async fn handle(&self, req:&mut http_core::RequestBuilder<async_lib::net::TcpStream>) -> std::result::Result<Option<http_core::Response>, http_core::HttpError> {
+        match self.match_path(&req.url.pathname()) {
+            Some(param) => self.handler(req.build(param)).await.map(|resp|Some(resp)),
+            None => Ok(None)
+        }
+    }
+}
+
+impl<P, R:Layer<P>> Router<P> for R {}
 
 pub mod builder {
     pub use http_core::RequestBuilder;
