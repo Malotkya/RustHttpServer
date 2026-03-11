@@ -3,7 +3,7 @@ use async_lib::{
     io::{AsyncRead, Result},
     net::TcpStream
 };
-use super::ServerParts;
+use super::Server;
 use crate::{
     http0, http1,
 };
@@ -92,11 +92,11 @@ pub(crate) async fn write_response(stream:&mut TcpStream, response:Response, ver
     }
 }
 
-pub(crate) async fn handle_connection<P: ServerParts>(parts: &P, stream:TcpStream) -> Result<()> {
+pub(crate) async fn handle_connection<S: Server>(server:S, stream:TcpStream) -> Result<()> {
     let (req_stream, mut resp_stream) = build_connections(stream).await?;
 
-    if let Some(mut request) = build_request(req_stream, &mut resp_stream, parts.hostname(), *parts.port()).await? {
-        let response = parts.handle_request(&mut request).await;
+    if let Some(mut request) = build_request(req_stream, &mut resp_stream, server.hostname(), server.port()).await? {
+        let response = server.handle_request(&mut request).await;
         crate::log(&request, &response);
         write_response(
             &mut resp_stream,
