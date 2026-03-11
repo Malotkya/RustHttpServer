@@ -19,9 +19,36 @@ async fn error_handler(mut req:ErrorRequest) -> Response {
     Response::from_error(req.param)
 }
 
-#[server(port=8080,threads=1)]
-struct ServerName ( 
+#[server]
+pub struct ServerName ( 
     Home,
     TestName,
     error_handler
 );
+
+#[cfg(test)]
+mod test {
+    use http::builder::Server;
+    use super::*;
+
+    #[test]
+    fn test_default_override() {
+        let s = ServerName::new(Some("localhost".to_string()), Some(8080));
+        
+        assert_eq!(
+            s.hostname(),
+            "localhost"
+        );
+
+        assert_eq!(
+            s.port(),
+            8080
+        );
+    }
+
+    #[test]
+    fn debug_server() {
+        ServerName::new(None, None)
+            .start(1).unwrap()
+    }
+}
