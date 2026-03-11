@@ -4,8 +4,14 @@
 /// 
 use std::fmt;
 use async_lib::io::AsyncRead;
-use http_core::{Headers, Method, Url, Version, RequestBuilder};
-use crate::http1::{types::Uri};
+use crate::{
+    headers::Headers,
+    method::Method,
+    url::Url,
+    version::Version,
+    request::RequestBuilder,
+    protocol::http1::types::Uri
+};
 
 pub enum BuildError {
     OnlyGetMethod,

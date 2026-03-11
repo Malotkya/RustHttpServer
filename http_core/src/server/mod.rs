@@ -1,4 +1,7 @@
-use http_core::{RequestBuilder, Response};
+use crate::{
+    request::RequestBuilder,
+    response::Response
+};
 use async_lib::{
     net::{TcpStream, TcpListener},
     executor::*
@@ -11,10 +14,15 @@ use std::{
     },
     rc::Rc
 };
-pub use arguments::{ServerOpts, get_user_options};
 
-mod helpers;
-mod arguments;
+mod request;
+mod response;
+mod connection;
+mod error;
+
+
+
+
 
 pub trait Server: 'static + Sized + Clone {
     fn hostname(&self) -> &str;
@@ -42,7 +50,7 @@ fn generate_listeners<S:Server>(server:&S) -> std::io::Result<(impl Fn() + Send 
     let conn_recv = Rc::new(conn_recv);
 
     let listener = TcpListener::bind(server.address())?;
-    let data = server.clone();
+    let clone = server.clone();
 
     Ok((move ||{
         match listener.sync_accept() {
@@ -55,12 +63,12 @@ fn generate_listeners<S:Server>(server:&S) -> std::io::Result<(impl Fn() + Send 
         }
     },
     async_lib::async_fn!(
-        clone=(data, conn_recv),
+        clone=(clone, conn_recv),
         {
             match conn_recv.try_recv() {
                 Ok(stream) => {
                     spawn_task(async move{
-                        if let Err(e) = helpers::handle_connection(data, stream).await {
+                        if let Err(e) = connection::handle_connection(clone, stream).await {
                             println!("Error: {}", e)
                         }
                     });

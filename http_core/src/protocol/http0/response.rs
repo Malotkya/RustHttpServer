@@ -1,4 +1,4 @@
-use http_core::Response;
+use crate::response::Response;
 use async_lib::io::{AsyncWrite, Result};
 
 pub async fn write<S>(resp: Response, stream:&mut S) -> Result<()> where S: AsyncWrite {
