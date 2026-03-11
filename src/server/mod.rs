@@ -11,8 +11,10 @@ use std::{
     },
     rc::Rc
 };
+pub use arguments::{ServerOpts, get_user_options};
 
 mod helpers;
+mod arguments;
 
 pub trait Server: 'static + Sized + Clone {
     fn hostname(&self) -> &str;
