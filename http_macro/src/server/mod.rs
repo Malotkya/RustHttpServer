@@ -18,21 +18,20 @@ pub fn build(args: proc_macro::TokenStream, attr: proc_macro::TokenStream) -> pr
     let server = build_server(
         attributes,
         &hostname,
-        port
+        port,
+        threads
     );
 
     quote::quote! {
         #server
 
         fn main() {
-            use http::builder::{Server, ServerOpts, get_user_options};
+            use http::server::{Server, ServerOpts, get_server_opts};
 
-            let ServerOpts{hostname, port, threads} = get_user_options(#config).unwrap();
-            let thread_count = threads.unwrap_or(#threads);
+            let opts = get_server_opts(#config).unwrap();
+            let server = #name::new(opts);
 
-            //TODO parse inputs here? or in start possibly?
-            let server = #name::new(hostname, port);
-            server.start(thread_count).unwrap();
+            server.start().unwrap();
         }
 
     }

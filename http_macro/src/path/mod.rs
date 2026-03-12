@@ -10,7 +10,7 @@ pub fn build(input:proc_macro::TokenStream) -> TokenStream {
     let (regex_str, keys) = compile(&input, false, false);
 
     quote::quote! {
-        http::types::Path{
+        http::server::router::Path{
             regex: regex::RegexBuilder::new(#regex_str)
                     .case_insensitive(true).build().unwrap(),
             keys: [#(#keys),*]

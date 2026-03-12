@@ -33,7 +33,7 @@ pub fn build(attributes:proc_macro::TokenStream, data:proc_macro::TokenStream) -
         #async_call fn #handler_name #hand_genics( #(#hand_attr),* ) #hand_return #hand_block
         
         #[allow(non_snake_case)]
-        #public #async_call fn #name(req:&mut http::builder::RequestBuilder<http::async_net::TcpStream>) -> Result<Option<http::types::Response>, http::HttpError> {
+        #public #async_call fn #name(req:&mut http::server::RequestBuilder<http::async_net::TcpStream>) -> http::Result<Option<http::Response>> {
             #match_capture
 
             Ok(None)
