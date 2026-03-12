@@ -9,13 +9,12 @@ use async_lib::{
     executor::*
 };
 use std::{
-    sync::{
-        mpsc,
-        Arc
-    },
-    rc::Rc
+    rc::Rc, sync::{
+        Arc, mpsc
+    }
 };
 use arguments::*;
+pub use http_macro::server;
 
 mod arguments;
 pub(crate) mod connection;
@@ -26,6 +25,44 @@ pub struct ServerOpts {
     pub port:Option<u16>,
     pub hostname:Option<String>,
     pub threads:Option<usize>
+}
+
+impl ServerOpts {
+    pub fn new<H:ToString>(hostname:H, port:u16, threads:usize) -> Self {
+        Self {
+            hostname: Some(hostname.to_string()),
+            port: Some(port.into()),
+            threads: Some(threads.into())
+        }
+    }
+
+    pub fn hostname<Hostname:ToString>(value:Hostname) -> Self {
+        Self {
+            hostname: Some(value.to_string()),
+            threads: None,
+            port: None
+        }
+    }
+
+    pub fn port(value:u16) -> Self {
+        Self {
+            hostname: None,
+            threads: None,
+            port: Some(value.into())
+        }
+    }
+
+    pub fn threads(value:usize) -> Self {
+        Self {
+            hostname: None,
+            threads: Some(value.into()),
+            port: None
+        }
+    }
+
+    pub fn none() -> Self {
+        Self { port: None, hostname: None, threads: None }
+    }
 }
 
 pub fn get_server_opts(config_filename:Option<&str>) -> std::io::Result<ServerOpts> {
@@ -55,10 +92,10 @@ pub trait Server: 'static + Sized + Clone {
 
     fn handle_request(&self, req:&mut RequestBuilder<TcpStream>) -> impl Future<Output = Response>;
 
-    fn start(&self, thread_count: usize /*, callback:Option<impl AsyncCallback<()>*/) -> std::io::Result<()> {
+    fn start(&self, /*callback:Option<impl AsyncCallback<()>*/) -> std::io::Result<()> {
         let (listener, reciever) = generate_listeners(self.clone())?;
 
-        init_thread_pool_with_listener(thread_count, listener);
+        init_thread_pool_with_listener(self.threads(), listener);
         start_with_callback(reciever);
 
         println!("Good bye!");
@@ -114,6 +151,34 @@ pub mod router {
         result::Result,
         error::HttpError
     };
+    use regex::Regex;
+    use std::collections::HashMap;
+
+    pub use http_macro::{path, router};
+
+    pub struct Path<'k, const N:usize> {
+        pub regex: Regex,
+        pub keys: [&'k str; N], 
+    }
+
+    impl<'k, const N:usize> Path<'k, N> {
+        pub fn match_path<'a>(&self, pathname: &'a str) -> Option<HashMap<&'k str, &'a str>> {
+            match self.regex.captures(pathname) {
+                Some(caps) => {
+                    let mut map = HashMap::new();
+                    let (_, matches) = caps.extract() as (&str, [&str; N]);
+                    
+                    for i in 0..N {
+                        map.insert(self.keys[i], matches[N]);
+                    }
+
+                    Some(map)
+                },
+                None => None
+            }
+        }
+    }
+
 
     pub trait Layer<Param> {
         fn new() -> Self;
@@ -126,10 +191,8 @@ pub mod router {
         #[allow(async_fn_in_trait)]
         async fn handle(&self, req:&mut RequestBuilder<async_lib::net::TcpStream>) -> std::result::Result<Option<Response>, HttpError> {
             match self.match_path(&req.url.pathname()) {
-                Some(param) => match self.handler(req.build(param)).await {
-                    Ok(resp) => Ok(Some(resp)),
-                    Err(err) => Err(err.err())
-                }
+                Some(param) =>  self.handler(req.build(param)).await
+                    .map(|resp|Some(resp)),
                 None => Ok(None)
             }
         }
