@@ -1,48 +1,14 @@
-#![feature(str_from_raw_parts)]
-#![allow(unused_imports)]
-
-use http_core::{Request, RequestBuilder};
-use async_lib::{
-    io::AsyncRead,
-    net::TcpStream
+pub use types::{
+    Response,
+    Request,
+    Result,
+    HttpError,
+    HttpErrorKind
 };
-
-pub use http_core::{
-    HttpError, HttpErrorKind, Result
+pub use server::{
+    server,
+    router::router
 };
-
-mod protocol;
-pub(crate) use protocol::*;
-mod server;
-
-mod html {
-    pub use html::*;
-}
-
-pub trait Layer<Param> {
-    fn new() -> Self;
-    fn match_path(&self, pathname:&str) -> Option<Param>;
-    fn handler(&self, request: Request<Param>) -> impl Future<Output = http_core::Result>;
-}
-
-pub trait Router<Param>: Layer<Param> {
-
-    #[allow(async_fn_in_trait)]
-    async fn handle(&self, req:&mut http_core::RequestBuilder<async_lib::net::TcpStream>) -> std::result::Result<Option<http_core::Response>, http_core::HttpError> {
-        match self.match_path(&req.url.pathname()) {
-            Some(param) => self.handler(req.build(param)).await.map(|resp|Some(resp)),
-            None => Ok(None)
-        }
-    }
-}
-
-impl<P, R:Layer<P>> Router<P> for R {}
-
-pub mod builder {
-    pub use http_core::RequestBuilder;
-    pub use super::server::*;
-    pub use http_macro::*;
-}
 
 pub mod json {
     pub use util::json::{
@@ -52,9 +18,27 @@ pub mod json {
 
 pub mod types {
     pub use http_core::{
-        HttpHeader, Headers, HeaderName, HeaderValue, Version,
-        Method, Path, Request, ErrorRequest, Response, HttpStatus, Url
+        error::{HttpErrorKind, HttpError, ValidHttpError},
+        method::Method,
+        request::{Request, ErrorRequest},
+        response::Response,
+        status::HttpStatus,
+        url::{Hostname, Url, ToUrl},
+        headers,
+        version::Version,
+        result::Result
     };
+
+    pub mod response {
+        pub use http_core::response::Chunk;
+    }
+}
+
+pub mod server {
+    pub use http_server::*;
+    pub use http_core::request::RequestBuilder;
+
+    pub use async_lib::executor;
 }
 
 pub mod async_net {
@@ -81,10 +65,10 @@ pub mod promise {
     };
 }
 
-pub mod executor {
-    pub use async_lib::executor::*;
+pub mod html {
+    pub use html::*;
 }
 
-pub(crate) fn log(req: &RequestBuilder<impl AsyncRead>, resp: &types::Response) {
+/*pub(crate) fn log(req: &RequestBuilder<impl AsyncRead>, resp: &types::Response) {
     println!("{:?} {:?}", req, resp);
-}
+}*/
