@@ -2,16 +2,15 @@
 pub mod error;
 pub mod headers;
 pub mod method;
-pub mod path;
 pub mod request;
 pub mod response;
 pub mod status;
 pub mod url;
 
 pub mod result {
-    use super::error::ValidHttpError;
+    use super::error::HttpError;
 
-    pub type Result<T> = std::result::Result<T, Box<dyn ValidHttpError>>;
+    pub type Result<T> = std::result::Result<T, HttpError>;
 }
 
 pub mod version {
