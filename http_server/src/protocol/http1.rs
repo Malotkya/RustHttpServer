@@ -1,3 +1,23 @@
+/// Following RFC-2616 Stanard:
+/// https://datatracker.ietf.org/doc/html/rfc2616
+/// 
+use async_lib::io::{AsyncRead, AsyncWrite, Result};
+use http_core::{
+    method::Method,
+    headers::Headers,
+    url::ToUrl,
+    version::Version,
+    response::Response,
+    request::RequestBuilder,
+};
+use super::{
+    BuildError,
+    types::*
+};
+
+
+
+
 /// http/1.1 Request Format:
 /// 
 /// [METHOD] %SP% [Request-URI] %SP% [HTTP-VERSION] %CRLF%
@@ -5,47 +25,7 @@
 /// %CRLF%
 /// [BODY]
 /// 
-use std::fmt;
-use crate::{
-    request::RequestBuilder,
-    method::Method,
-    headers::Headers,
-    url::ToUrl
-};
-use async_lib::io::AsyncRead;
-use super::types::*;
-
-pub enum BuildError {
-    IoError(std::io::Error),
-    EmptyRequest,
-    ParseError(ParseStreamError),
-    MissingMethod,
-    InvalidMethod(String),
-    InvalidVersion(String),
-    MissingVersion(Method, Uri),
-    MissingUri,
-    InvalidUri(UriError),
-    InvalidUrl(String)
-}
-
-impl fmt::Display for BuildError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::IoError(e) => write!(f, "{}", e),
-            Self::EmptyRequest => write!(f, "Empty Reqeust recieved!"),
-            Self::ParseError(str) => write!(f, "{}", str),
-            Self::MissingMethod => write!(f, "Missing Method at start of request!"),
-            Self::InvalidMethod(str) => write!(f, "{} is not a valid method!", str),
-            Self::InvalidVersion(str) => write!(f, "{} is not a valid version!", str),
-            Self::MissingVersion(_, _) => write!(f, "Unable to find the http version!"),
-            Self::InvalidUri(e) => write!(f, "{}", e),
-            Self::MissingUri => write!(f, "Uri missing from request!"),
-            Self::InvalidUrl(str) => write!(f, "{}", str)
-        }
-    }
-}
-
-pub async fn parse_request<S>(stream:S, hostname:&str, port:u16) -> Result<RequestBuilder<S>, BuildError>
+pub async fn build_request<S>(stream:S, hostname:&str, port:u16) -> std::result::Result<RequestBuilder<S>, BuildError>
     where S: AsyncRead {
 
     let mut parser = StreamParser::new(stream);
@@ -121,4 +101,29 @@ pub async fn parse_request<S>(stream:S, hostname:&str, port:u16) -> Result<Reque
             Some(parser.take_reader().unwrap())
         )
     )
+}
+
+pub async fn write_response<S>(resp:Response, ver:Version, stream:&mut S) -> Result<()> where S: AsyncWrite {
+    stream.write(format!(
+        "{} {} {}\r\n",
+        ver.to_string(),
+        resp.status.code().to_string(),
+        resp.status.as_str()
+    ).as_bytes()).await?;
+
+    for (key, value) in resp.headers.into_iter() {
+         stream.write(&format!(
+            "{}: {}\r\n",
+            key.name(),
+            value.ref_str().unwrap()
+        ).as_bytes()).await?;
+    }
+
+    stream.write(b"\r\n").await?;
+
+    for chunk in resp.body {
+        stream.write(chunk.value()).await?;
+    }
+
+    Ok(())
 }

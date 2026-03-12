@@ -1,11 +1,12 @@
 use std::{collections::LinkedList, fmt };
 use async_lib::io::{AsyncRead, AsyncBufReader};
-mod tokens;
 pub use tokens::*;
-mod version;
 pub use version::parse_version;
-mod uri;
 pub use uri::{Uri, UriError};
+
+mod tokens;
+mod version;
+mod uri;
 
 const CHUNK_SEPERATOR: &'static [u8] = b"\r\n";
 
