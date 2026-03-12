@@ -4,11 +4,9 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-http_macro = { path = "http_macro" }
 http_core = { path = "http_core" }
 http_server = { path = "http_server" }
 async_lib  = { path = "async_lib" }
 html = { path = "html" }
-util = { path = "util" }
-lazy_static = "1.4.0"
+util = { path = "util" } 
 regex = "1.10.5"

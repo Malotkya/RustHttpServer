@@ -654,7 +654,6 @@ name = "html_macros"
 version = "0.1.0"
 dependencies = [
  "deluxe",
- "lazy_static",
  "paste",
  "proc-macro2",
  "quote",

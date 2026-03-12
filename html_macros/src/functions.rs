@@ -1,20 +1,23 @@
-use lazy_static::lazy_static;
 use regex::{RegexBuilder, Regex};
 use swc::{config::IsModule, Compiler, PrintArgs};
 use swc_common::{errors::Handler, source_map::SourceMap, sync::Lrc, Mark, FileName, GLOBALS};
 use swc_ecma_ast::EsVersion;
 use swc_ecma_parser::Syntax;
 use swc_ecma_transforms_typescript::strip;
+use std::sync::LazyLock;
 
-lazy_static! {
-    static ref FUNCTION_REGEX:Regex = RegexBuilder::new(r"^\s?(?P<async>async)?\s?function\s(?P<name>.*?)\s?\((?P<args>.*?)\)\{(?P<body>.*?)\}$")
-        .dot_matches_new_line(true).unicode(true).build().unwrap();
-    static ref ARROW_REGEX:Regex = RegexBuilder::new(r"^(?:(?:const|let)\s+(?P<name>.*?)\s?=\s?)?(?P<async>async)?\((?P<args>.*?)\)\s?=>\{(?P<body>.*)}$")
-        .dot_matches_new_line(true).unicode(true).build().unwrap();
-
-    static ref SINGLE_LINE_REGEX:Regex = RegexBuilder::new(r"^(?:(?:const|let)\s+(?P<name>.*?)\s?=\s?)?(?P<async>async)?\((?P<args>.*?)\)\s?=>(?P<body>.*?)$")
-        .dot_matches_new_line(true).unicode(true).build().unwrap();
-}
+static FUNCTION_REGEX:LazyLock<Regex> = LazyLock::new(||{
+    RegexBuilder::new(r"^\s?(?P<async>async)?\s?function\s(?P<name>.*?)\s?\((?P<args>.*?)\)\{(?P<body>.*?)\}$")
+        .dot_matches_new_line(true).unicode(true).build().unwrap()
+});
+static ARROW_REGEX:LazyLock<Regex> = LazyLock::new(||{
+    RegexBuilder::new(r"^(?:(?:const|let)\s+(?P<name>.*?)\s?=\s?)?(?P<async>async)?\((?P<args>.*?)\)\s?=>\{(?P<body>.*)}$")
+        .dot_matches_new_line(true).unicode(true).build().unwrap()
+});
+static SINGLE_LINE_REGEX:LazyLock<Regex> = LazyLock::new(||{
+    RegexBuilder::new(r"^(?:(?:const|let)\s+(?P<name>.*?)\s?=\s?)?(?P<async>async)?\((?P<args>.*?)\)\s?=>(?P<body>.*?)$")
+        .dot_matches_new_line(true).unicode(true).build().unwrap()
+});
 
 struct FunctionMatch<'a> {
     is_async: bool,

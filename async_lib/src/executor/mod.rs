@@ -1,11 +1,13 @@
 use std::{
-    cell::RefCell, pin::Pin, sync::{
+    cell::RefCell,
+    pin::Pin,
+    sync::{
+        LazyLock,
         atomic::{AtomicBool, Ordering},
         mpsc::{channel, Receiver, TryRecvError}
     },
     task::{Context, Poll}
 };
-use lazy_static::__Deref;
 
 mod job;
 use job::*;
@@ -20,9 +22,9 @@ pub(crate) use atomic::*;
 const DEFAULT_QUEUE_SIZE: usize = 1000;
 
 pub(crate) static RUNNING:AtomicBool = AtomicBool::new(false);
-lazy_static::lazy_static!(
-    static ref JOBS:JobHandler = JobHandler::new(DEFAULT_QUEUE_SIZE);
-);
+static JOBS:LazyLock<JobHandler> = LazyLock::new(||{
+    JobHandler::new(DEFAULT_QUEUE_SIZE)
+});
 
 pub trait Callback<T> = Fn() -> T + Send + Sync + 'static;
 pub trait AsyncCallback<T> = Fn() -> Pin<Box<dyn Future<Output = T>>> + 'static;
@@ -133,7 +135,7 @@ pub fn init_thread_pool(thread_count:usize) {
                 );
             },
             _ => {
-                pool.init_thread_group("IO", JOBS.deref(), thread_count);
+                pool.init_thread_group("IO", JOBS.clone(), thread_count);
             }
         }
     });
@@ -158,7 +160,7 @@ pub fn init_thread_pool_with_listener(thread_count:usize, listener: impl Callbac
             },
             _ => {
                 pool.init_thread("Listener", ListenerThreadJob::new(listener));
-                pool.init_thread_group("IO", JOBS.deref(), thread_count-1);
+                pool.init_thread_group("IO", JOBS.clone(), thread_count-1);
             }
         }
     });

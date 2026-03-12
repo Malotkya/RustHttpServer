@@ -1,6 +1,9 @@
 /// https://github.com/pillarjs/path-to-regexp/blob/master/src/index.ts#L503
 use regex::{Regex, RegexBuilder};
-use std::collections::VecDeque;
+use std::{
+    collections::VecDeque,
+    sync::LazyLock
+};
 
 
 //const PREFIX:&'static str    = "./";
@@ -8,16 +11,18 @@ const DELIMITER:&'static str = "/";
 const ESCAPED_DELIMITER:&'static str = "\\/";
 const EMPTY_STRING:&'static str = "";
 
-lazy_static::lazy_static! {
-    static ref ID_START:Regex = RegexBuilder::new(r#"^[$_\p{ID_Start}]$"#)
-            .case_insensitive(true).build().unwrap();
-
-    static ref ID_CONTINUE:Regex = RegexBuilder::new(r#"^[$\u200c\u200d\p{ID_Continue}]$"#)
-            .case_insensitive(true).build().unwrap();
-
-    static ref ESCAPE:Regex = RegexBuilder::new(r#"([.+*?^${}()\[\]|\\])"#)
-            .build().unwrap();
-}
+static ID_START:LazyLock<Regex> = LazyLock::new(||{
+    RegexBuilder::new(r#"^[$_\p{ID_Start}]$"#)
+        .case_insensitive(true).build().unwrap()
+});
+static ID_CONTINUE:LazyLock<Regex> = LazyLock::new(||{
+    RegexBuilder::new(r#"^[$\u200c\u200d\p{ID_Continue}]$"#)
+        .case_insensitive(true).build().unwrap()
+});
+static ESCAPE:LazyLock<Regex> = LazyLock::new(||{
+    RegexBuilder::new(r#"([.+*?^${}()\[\]|\\])"#)
+        .build().unwrap()
+});
 
 #[derive(PartialEq, Eq)]
 pub(crate) enum TokenType {
