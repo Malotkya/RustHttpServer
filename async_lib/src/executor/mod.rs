@@ -24,6 +24,9 @@ lazy_static::lazy_static!(
     static ref JOBS:JobHandler = JobHandler::new(DEFAULT_QUEUE_SIZE);
 );
 
+pub trait Callback<T> = Fn() -> T + Send + Sync + 'static;
+pub trait AsyncCallback<T> = Fn() -> Pin<Box<dyn Future<Output = T>>> + 'static;
+
 thread_local! {
     static THREAD_POOL:RefCell<ThreadPool> = RefCell::new(ThreadPool::new());
     static TASKS:RefCell<TaskHandler<'static>> = RefCell::new(TaskHandler::new(DEFAULT_QUEUE_SIZE));
@@ -36,7 +39,7 @@ pub fn spawn_task(future: impl Future<Output = ()> + 'static) {
     })
 }
 
-pub fn await_thread<T: Send + 'static>(func: impl Fn() -> T + Send + Sync + 'static) -> impl Future<Output = T> {
+pub fn await_thread<T: Send + 'static>(func: impl Callback<T>) -> impl Future<Output = T> {
     let (sender, receiver) = channel::<T>();
 
     JOBS.add(move||{
@@ -47,7 +50,7 @@ pub fn await_thread<T: Send + 'static>(func: impl Fn() -> T + Send + Sync + 'sta
     Actor(receiver)
 }
 
-pub fn sapwn_thread<T: Send + 'static>(func: impl Fn() -> T + Send + Sync + 'static) -> T {
+pub fn sapwn_thread<T: Send + 'static>(func: impl Callback<T>) -> T {
     let (sender, receiver) = channel::<T>();
 
     JOBS.add(move||{
@@ -136,7 +139,7 @@ pub fn init_thread_pool(thread_count:usize) {
     });
 }
 
-pub fn init_thread_pool_with_listener(thread_count:usize, listener: impl Fn() + Send + Sync + 'static) {
+pub fn init_thread_pool_with_listener(thread_count:usize, listener: impl Callback<()>) {
     if thread_count == 0 {
         panic!("Unable to initalize thread pool with zero threads!");
     }
@@ -161,7 +164,7 @@ pub fn init_thread_pool_with_listener(thread_count:usize, listener: impl Fn() + 
     });
 }
 
-pub fn start_with_callback(callback: impl Fn() -> Pin<Box<dyn Future<Output = ()>>> + 'static) {
+pub fn start_with_callback(callback: impl AsyncCallback<()>) {
     TASKS.with(|cell|{
         let tasks = cell.borrow();
 
@@ -170,7 +173,7 @@ pub fn start_with_callback(callback: impl Fn() -> Pin<Box<dyn Future<Output = ()
     });
 }
 
-pub fn start_with_callback_list(mut list: Vec<Box<dyn Fn() -> Pin<Box<dyn Future<Output = ()>>> + 'static>>) {
+pub fn start_with_callback_list(mut list: Vec<Box<dyn AsyncCallback<()>>>) {
     TASKS.with(|cell|{
         let tasks = cell.borrow();
 

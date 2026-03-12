@@ -1,5 +1,6 @@
 #![feature(associated_type_defaults)]
 #![feature(async_iterator)]
+#![feature(trait_alias)]
 #![allow(dead_code)]
 
 mod event;
