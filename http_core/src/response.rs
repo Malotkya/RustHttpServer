@@ -1,6 +1,6 @@
 use crate::{
     headers::Headers,
-    error::HttpError,
+    error::{HttpError, ValidHttpError},
     status::HttpStatus,
     result::Result
 };
@@ -95,7 +95,7 @@ impl Response {
 
     pub fn write<T>(&mut self, data:T) -> Result<&Self> where T: Into<Chunk> {
         if self.sent {
-            Err(Box::new(ResponseError::ResponseSent))
+            ResponseError::ResponseSent.send()
         } else {
             self.body.push_back(data.into());
             Ok(self)
@@ -105,10 +105,10 @@ impl Response {
 
     pub fn http<N:Node>(&mut self, http:N) ->Result<&Self> {
         if self.sent {
-            Err(Box::new(ResponseError::ResponseSent))
+            ResponseError::ResponseSent.send()
         } else if let Some(header) = self.headers.get("Content-Type")
             && let Ok(value) = header.ref_str() && value != "application/html" {
-            Err(Box::new(ResponseError::HeadersSent))
+            ResponseError::HeadersSent.send()
         } else {
             self.headers.set("Content-Type", "application/html");
             self.body.push_back(
@@ -120,10 +120,10 @@ impl Response {
 
     pub fn json(&mut self, json:&JsonValue) -> Result<&Self> {
         if self.sent {
-            Err(Box::new(ResponseError::ResponseSent))
+            ResponseError::ResponseSent.send()
         } else if let Some(header) = self.headers.get("Content-Type")
             && let Ok(value) = header.ref_str() && value != "application/json" {
-            Err(Box::new(ResponseError::HeadersSent))
+            ResponseError::HeadersSent.send()
         } else {
             self.headers.set("Content-Type", "application/json");
             self.body.push_back(
