@@ -1,17 +1,16 @@
 pub use http::{
-    types::{Request, Response, ErrorRequest},
-    builder::{router, server},
-    types::*
+    types::*,
+    server, router
 };
 
 #[router(path="/Hello/:Name")]
-async fn TestName(req: Request<TestNamePathParam>) -> http::Result {
-    Ok(Response::from(format!("Hello {}!", req.param.Name)))
+async fn TestName(req: Request<TestNamePathParam>) -> Result<Response> {
+    Response::from(format!("Hello {}!", req.param.Name)).send()
 }
 
 #[router(path="/")]
-async fn Home(_: Request<HomePathParam>) -> http::Result {
-    Ok(Response::from("Hello World!"))
+async fn Home(_: Request<HomePathParam>) -> Result<Response> {
+    Response::from("Hello World!").send()
 }
 
 async fn error_handler(mut req:ErrorRequest) -> Response {
@@ -28,12 +27,16 @@ pub struct ServerName (
 
 #[cfg(test)]
 mod test {
-    use http::builder::Server;
+    use http::server::{Server, ServerOpts};
     use super::*;
 
     #[test]
     fn test_default_override() {
-        let s = ServerName::new(Some("localhost".to_string()), Some(8080));
+        let s = ServerName::new(ServerOpts::new(
+            "localhost",
+            8080,
+            20
+        ));
         
         assert_eq!(
             s.hostname(),
@@ -44,11 +47,16 @@ mod test {
             s.port(),
             8080
         );
+
+        assert_eq!(
+            s.threads(),
+            20
+        )
     }
 
     #[test]
     fn debug_server() {
-        ServerName::new(None, None)
-            .start(1).unwrap()
+        ServerName::new(ServerOpts::threads(1))
+            .start().unwrap()
     }
 }
