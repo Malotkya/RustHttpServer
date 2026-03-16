@@ -1,152 +1,143 @@
 use std::{
     sync::{
         atomic::Ordering,
-        mpsc::{Sender, Receiver, channel},
-        Arc
+        Arc, Mutex
     },
-    thread::{Builder, JoinHandle}
+    thread::{Builder, JoinHandle, park, Thread},
+};
+use super::{
+    RUNNING,
+    AtomicOption
 };
 
-pub(crate) struct ThreadPoolConnection {
+pub trait ThreadJob = Fn(ThreadPoolConnection) + Send + Sync + 'static;
+
+#[derive(Clone)]
+pub struct ThreadPoolConnection {
     id: usize,
-    sender: Sender<usize>
+    parked: Arc<Mutex<bool>>,
+    handle: AtomicOption<&'static JoinHandle<()>>
 }
 
 unsafe impl Send for ThreadPoolConnection {}
 
-impl Clone for ThreadPoolConnection {
-    fn clone(&self) -> Self {
-        Self {
-            id: self.id,
-            sender: self.sender.clone()
-        }
-    }
-}
-
 impl ThreadPoolConnection {
     pub fn unpark_self(&self) {
-        self.sender.send(self.id).unwrap();
-    }
-}
-
-pub trait ThreadJob: Send + Clone{
-    fn connect(&self, conn: ThreadPoolConnection);
-    fn next(&self);
-}
-
-impl<T: ThreadJob + Sync> ThreadJob for Arc<T> {
-    fn connect(&self, conn: ThreadPoolConnection) {
-        self.as_ref().connect(conn);
-    }
-
-    fn next(&self) {
-        self.as_ref().next();
-    }
-}
-
-impl<T: ThreadJob + Sync> ThreadJob for &'static T {
-    fn connect(&self, conn: ThreadPoolConnection) {
-        (*self).connect(conn);
-    }
-
-    fn next(&self) {
-        (*self).next();
-    }
-}
-
-#[derive(Clone)]
-pub(crate) struct ListenerThreadJob {
-    listener: Arc<Box<dyn Fn() + Send + Sync + 'static>>
-}
-
-impl ListenerThreadJob {
-    pub fn new(listener: impl Fn() + Send + Sync + 'static) -> Self {
-        Self {
-            listener: Arc::new(Box::new(listener))
+        if let Some(handle) = self.handle.try_unwrap() {
+            if let Ok(mut parked) = self.parked.lock() {
+                *parked = false;
+                handle.thread().unpark();
+            } 
         }
     }
-}
 
-impl ThreadJob for ListenerThreadJob {
-    fn connect(&self, _c: ThreadPoolConnection) {
-        
+    pub fn park(&self) {
+        if let Ok(mut parked) = self.parked.lock() {
+            *parked = true;
+            park();
+        } 
     }
 
-    fn next(&self) {
-        (self.listener)();
+    pub fn running(&self) -> bool {
+        RUNNING.load(Ordering::Relaxed)
+    }
+}
+
+struct PoolThreadConnection {
+    id: usize,
+    parked: Arc<Mutex<bool>>,
+    handle: JoinHandle<()>
+}
+
+impl PoolThreadConnection {
+    fn is_parked(&self) -> Option<bool> {
+        if let Ok(parked) = self.parked.lock() {
+            Some(*parked)
+        } else {
+            None
+        }
+    }
+
+    fn thread(&self) -> &Thread {
+        self.handle.thread()
+    }
+
+    fn join(self) {
+        let name = (self.handle.thread().name().unwrap_or("Anonymous")).to_string();
+
+        if self.handle.join().is_err() {
+            println!("Unable to join with thread: \"{}\"!", name);
+        }
     }
 }
 
 #[derive(Default)]
 pub struct ThreadPool{
-    threads: Vec<JoinHandle<()>>,
-    sender: Option<Sender<usize>>,
-    receiver: Option<Receiver<usize>>
+    threads: Vec<PoolThreadConnection>,
 }
 
 impl ThreadPool {
     pub const fn new() -> Self {        
         Self {
-            threads: Vec::new(),
-            sender: None,
-            receiver: None
+            threads: Vec::new()
         }
     }
 
     pub fn init(&mut self, thread_count:usize) {
-        assert_eq!(self.threads.capacity(), 0, "Thread Pool is Already Initalized!"); 
-
-        let (sender, receiver) = channel::<usize>();
-        self.sender = Some(sender);
-        self.receiver = Some(receiver);
+        assert_ne!(self.threads.capacity(), 0, "Thread Pool is Already Initalized!"); 
         self.threads = Vec::with_capacity(thread_count);
     }
 
-    fn assert_init(&mut self) -> (&mut Vec<JoinHandle<()>>, &Sender<usize>) {
-        if self.sender.is_none() {
-            panic!("Thread pool is not intalized!");
-        }
+    pub fn init_thread(&mut self, name:&str, thread:impl ThreadJob) {
+        let index = self.threads.len();
 
-        let s = self.sender.as_ref().unwrap();
-        (&mut self.threads, s)
-    }
-
-    pub fn init_thread<T: ThreadJob + 'static>(&mut self, name:&str, job:T) {
-        let (threads, sender) = self.assert_init();
-        
-        let index = threads.len();
-        if index >= threads.capacity() {
+        if index >= self.threads.capacity() {
             panic!("Thread Pool Full!")
         }
 
         let builder = Builder::new().name(name.to_string());
-        job.connect(ThreadPoolConnection{
+        let conn = ThreadPoolConnection{
             id: index,
-            sender: sender.clone()
-        });
-        let clone = job.clone();
+            parked: Arc::new(Mutex::new(false)),
+            handle: AtomicOption::none()
+        };
+        let clone = conn.clone();
 
-        threads.push(builder.spawn(move||{
-            while super::RUNNING.load(Ordering::Acquire) {
-                clone.next();
-            }
-        }).unwrap());
+        let handle = builder.spawn(move||thread(conn)).unwrap();
+        clone.handle.set(Some(unsafe {
+            &*(&handle as *const JoinHandle<()>)
+                as &JoinHandle<()>
+        }));
+
+        let handle = PoolThreadConnection {
+            id: index,
+            parked: clone.parked.clone(),
+            handle
+        };
+
+        self.threads.push(handle);
     }
 
-    pub fn init_thread_group<T: ThreadJob + 'static>(&mut self, name:&str, job: T, count: usize) {
-        for index in 0..count {
-            self.init_thread(&format!("{}: {}", name, index+1), job.clone());
+    pub fn manage(&mut self, mut value:usize) {
+        for handle in &self.threads {
+            match handle.is_parked() {
+                Some(parked) => if parked {
+                    handle.thread().unpark();
+                    value -= 1;
+                },
+                None =>  handle.thread().unpark()
+            }
+
+            if value == 0 {
+                break;
+            }
         }
     }
 
     pub fn join(mut self) {
         while let Some(handle) = self.threads.pop() {
             handle.thread().unpark();
-
-            let name = (handle.thread().name().unwrap_or("Anonymous")).to_string();
-            if handle.join().is_err() {
-                println!("Unable to join with thread: \"{}\"!", name);
-            }
+            handle.join()
         }
     }
 }
