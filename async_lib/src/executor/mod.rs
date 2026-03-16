@@ -1,16 +1,13 @@
 use std::{
     cell::RefCell,
-    pin::Pin,
     sync::{
         LazyLock,
         atomic::{AtomicBool, Ordering},
         mpsc::{channel, Receiver, TryRecvError}
     },
-    task::{Context, Poll}
+    thread::JoinHandle
 };
 
-mod job;
-use job::*;
 mod tasks;
 use tasks::*;
 mod waker;
@@ -22,45 +19,43 @@ pub(crate) use atomic::*;
 const DEFAULT_QUEUE_SIZE: usize = 1000;
 
 pub(crate) static RUNNING:AtomicBool = AtomicBool::new(false);
-static JOBS:LazyLock<JobHandler> = LazyLock::new(||{
-    JobHandler::new(DEFAULT_QUEUE_SIZE)
+static JOB_THREAD_QUEUE:LazyLock<AtomicQueue<Box<dyn ThreadJob>>> = LazyLock::new(||{
+    AtomicQueue::new("Job", DEFAULT_QUEUE_SIZE)
+});
+static ASYNC_TASKS_HANDLER:LazyLock<TaskHandler> = LazyLock::new(||{
+    TaskHandler::new(DEFAULT_QUEUE_SIZE)
+});
+static MAIN_THREAD_HANDLE:LazyLock<AtomicOption<JoinHandle<()>>> = LazyLock::new(||{
+    AtomicOption::none()
 });
 
-pub trait Callback<T> = Fn() -> T + Send + Sync + 'static;
-pub trait AsyncCallback<T> = Fn() -> Pin<Box<dyn Future<Output = T>>> + 'static;
+pub trait ThreadJobReturnValue<T> = Fn(ThreadPoolConnection) -> T + Send + Sync + 'static;
 
 thread_local! {
     static THREAD_POOL:RefCell<ThreadPool> = RefCell::new(ThreadPool::new());
-    static TASKS:RefCell<TaskHandler<'static>> = RefCell::new(TaskHandler::new(DEFAULT_QUEUE_SIZE));
 }
 
 pub fn spawn_task(future: impl Future<Output = ()> + 'static) {
-    TASKS.with(|cell|{
-        let tasks = cell.borrow();
-        tasks.spawn_task(future);
-    })
+    ASYNC_TASKS_HANDLER.spawn_task(future);
+    unpark_main_thread();
 }
 
-pub fn await_thread<T: Send + 'static>(func: impl Callback<T>) -> impl Future<Output = T> {
+pub fn spawn_thread_job(func: impl ThreadJob) {
+    JOB_THREAD_QUEUE.push(Box::new(func));
+
+    unpark_job_threads(1);
+}
+
+pub fn await_thread_job<T: Send + 'static>(func: impl ThreadJobReturnValue<T>) -> impl Future<Output = T> {
     let (sender, receiver) = channel::<T>();
 
-    JOBS.add(move||{
-        let r = func();
-        sender.send(r).unwrap();
-    });
+    JOB_THREAD_QUEUE.push(Box::new(move|conn|{
+        sender.send(func(conn)).unwrap()
+    }));
+
+    unpark_job_threads(1);
 
     Actor(receiver)
-}
-
-pub fn sapwn_thread<T: Send + 'static>(func: impl Callback<T>) -> T {
-    let (sender, receiver) = channel::<T>();
-
-    JOBS.add(move||{
-        let r = func();
-        sender.send(r).unwrap();
-    });
-    
-    receiver.recv().unwrap()
 }
 
 struct Actor<T:Send>(pub(crate) Receiver<T>);
@@ -81,43 +76,36 @@ impl<T:Send> Future for Actor<T> {
     }
 }
 
-struct UserTask{
-    function: Box<dyn Fn() -> Pin<Box<dyn Future<Output = ()>>>  + 'static>,
-    future: Option<Pin<Box<dyn Future<Output = ()> + 'static>>>
-}
-
-impl UserTask {
-    pub fn new(func: Box<dyn Fn() -> Pin<Box<dyn Future<Output = ()>>>  + 'static>) -> Self {
-        Self {
-            function: func,
-            future: None
+fn job_thread(conn:ThreadPoolConnection) {
+    while RUNNING.load(Ordering::Relaxed) {
+        //Sleep If Idle
+        if JOB_THREAD_QUEUE.is_empty() && ASYNC_TASKS_HANDLER.is_empty() {
+            std::thread::park();
         }
+
+        while let Some(job) = JOB_THREAD_QUEUE.pop() {
+            job(conn.clone())
+        }
+
+        ASYNC_TASKS_HANDLER.run_next_task();
     }
 }
 
-impl Future for UserTask {
-    type Output = ();
-
-    fn poll(mut self: std::pin::Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        match self.future.as_mut() {
-            Some(future) => if future.as_mut().poll(cx).is_ready() {
-                self.future = None;
-            },
-            None => {
-                let mut future = (self.function.as_ref())();
-                if future.as_mut().poll(cx).is_pending() {
-                    self.future = Some(future);
-                }
-            }
-        }
-
-        cx.waker().wake_by_ref();
-        std::task::Poll::Pending
+#[inline]
+fn unpark_main_thread() {
+    if let Some(handle) = MAIN_THREAD_HANDLE.try_unwrap() {
+        handle.thread().unpark();
     }
 }
 
+#[inline]
+pub(crate) fn unpark_job_threads(count:usize) {
+    THREAD_POOL.with(|cell|{
+        cell.borrow_mut().unpark(count)
+    });
+}
 
-pub fn init_thread_pool(thread_count:usize) {  
+pub fn init_async_thread_pool(thread_count:usize) {  
     if thread_count == 0 {
         panic!("Unable to initalize thread pool with zero threads!");
     }
@@ -126,81 +114,33 @@ pub fn init_thread_pool(thread_count:usize) {
         let mut pool = cell.borrow_mut();
         pool.init(thread_count);
 
-        match thread_count {
-            1 => {
-                println!("Two threads is recomended");
-                pool.init_thread(
-                    "Listener & IO", 
-                    JOBS.single_thread(), 
-                );
-            },
-            _ => {
-                pool.init_thread_group("IO", JOBS.clone(), thread_count);
-            }
+        for i in 0..thread_count {
+            pool.init_thread(&i.to_string(), job_thread);
         }
-    });
-}
-
-pub fn init_thread_pool_with_listener(thread_count:usize, listener: impl Callback<()>) {
-    if thread_count == 0 {
-        panic!("Unable to initalize thread pool with zero threads!");
-    }
-    
-    THREAD_POOL.with(|cell|{
-        let mut pool = cell.borrow_mut();
-        pool.init(thread_count);
-
-        match thread_count {
-            1 => {
-                println!("Two threads is recomended");
-                pool.init_thread(
-                    "Listener & IO", 
-                    JOBS.single_thread_listener(listener), 
-                );
-            },
-            _ => {
-                pool.init_thread("Listener", ListenerThreadJob::new(listener));
-                pool.init_thread_group("IO", JOBS.clone(), thread_count-1);
-            }
-        }
-    });
-}
-
-pub fn start_with_callback(callback: impl AsyncCallback<()>) {
-    TASKS.with(|cell|{
-        let tasks = cell.borrow();
-
-        tasks.spawn_task(UserTask::new(Box::new(callback)));
-        start();
-    });
-}
-
-pub fn start_with_callback_list(mut list: Vec<Box<dyn AsyncCallback<()>>>) {
-    TASKS.with(|cell|{
-        let tasks = cell.borrow();
-
-        while let Some(callback) = list.pop() {
-            tasks.spawn_task(UserTask::new(callback));
-        }
-        
-        start();
     });
 }
 
 pub fn start() {
     RUNNING.store(true, Ordering::Relaxed);
 
-    TASKS.with(|cell|{
-        let tasks = cell.borrow();
+    while RUNNING.load(Ordering::Relaxed) {
+        //Sleep If Idle
+        if ASYNC_TASKS_HANDLER.is_empty() {
+            std::thread::park();
 
-        while RUNNING.load(Ordering::Acquire) {
-            tasks.sleep_if_idle();
-            tasks.run_ready_tasks();
+        //Ask for help with tasks
+        } else {
+            unpark_job_threads(ASYNC_TASKS_HANDLER.len());
         }
-    })
+
+        //Handle as many tasks as possible.
+        ASYNC_TASKS_HANDLER.run_all_tasks();
+    }
+
+    THREAD_POOL.take().join();
 }
 
 pub fn shut_down() {
     RUNNING.store(false, Ordering::Relaxed);
-    THREAD_POOL.take().join();
+    
 }
