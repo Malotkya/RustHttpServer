@@ -41,6 +41,10 @@ impl<T> AtomicQueue<T> {
         queue.pop_front()
     }
 
+    pub fn len(&self) -> usize {
+        self.0.lock().unwrap().len()
+    }
+
     pub fn is_empty(&self) -> bool {
         let queue = self.0.lock().unwrap();
         queue.is_empty()
@@ -114,10 +118,10 @@ impl<K: Ord, V:Send + Clone> AtomicMap<K, V> {
 }
 
 #[derive(Clone)]
-pub(crate) struct AtomicFuture<'a>(Arc<Mutex<Pin<Box<dyn Future<Output = ()> + 'a>>>>);
+pub(crate) struct AtomicFuture(Arc<Mutex<Pin<Box<dyn Future<Output = ()> + 'static>>>>);
 
-impl<'a> AtomicFuture<'a> {
-    pub fn new(f: impl Future<Output = ()> + 'a) -> Self {
+impl AtomicFuture {
+    pub fn new(f: impl Future<Output = ()> + 'static) -> Self {
         Self(
             Arc::new(
                 Mutex::new(
@@ -137,8 +141,12 @@ impl<'a> AtomicFuture<'a> {
 pub(crate) struct AtomicOption<T:Send>(Arc<Mutex<Option<Arc<T>>>>);
 
 impl<T:Send> AtomicOption<T> {
-    pub fn new() -> Self {
+    pub fn none() -> Self {
         Self::from(None)
+    }
+
+    pub fn some(value:T) -> Self {
+        Self::from(Some(value))
     }
 
     pub fn from(value: Option<T>) -> Self {
