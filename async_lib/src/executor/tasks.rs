@@ -8,7 +8,7 @@ use std::{
 };
 use super::{
     waker::TaskWaker,
-    AtomicQueue, AtomicMap, AtomicFuture, ThreadPoolConnection, AtomicOption
+    AtomicQueue, AtomicMap, AtomicFuture
 };
 
 
