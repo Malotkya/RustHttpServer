@@ -20,7 +20,7 @@ impl AsyncIterator for ReadDir {
 pub async fn read_dir<P: AsRef<Path>>(path: P) -> io::Result<ReadDir> {
     let data = canonicalize(path)?;
 
-    let reader = crate::await_thread(move||{
+    let reader = crate::await_thread_job(move|_|{
         std::fs::read_dir(data.clone())
     }).await?;
 

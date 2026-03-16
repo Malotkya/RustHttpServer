@@ -24,7 +24,7 @@ impl DirBuilder {
     pub async fn create<P: AsRef<Path>>(self, path: P) -> io::Result<()> {
         let data = canonicalize(path)?;
         let inner = Arc::new(self.io);
-        crate::await_thread(move ||{
+        crate::await_thread_job(move |_|{
             inner.create(data.clone())
         }).await
     }
