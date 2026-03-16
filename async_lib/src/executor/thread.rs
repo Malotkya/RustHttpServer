@@ -118,17 +118,18 @@ impl ThreadPool {
         self.threads.push(handle);
     }
 
-    pub fn manage(&mut self, mut value:usize) {
+    pub fn unpark(&mut self, mut count:usize) {
         for handle in &self.threads {
             match handle.is_parked() {
                 Some(parked) => if parked {
                     handle.thread().unpark();
-                    value -= 1;
+                    count -= 1;
                 },
+                //If Unsure, unpark anyway but don't count it.
                 None =>  handle.thread().unpark()
             }
 
-            if value == 0 {
+            if count == 0 {
                 break;
             }
         }
