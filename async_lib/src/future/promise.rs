@@ -2,7 +2,8 @@ use std::{
     sync::{
         mpsc::{Sender, Receiver, TryRecvError, channel}
     },
-    task::{Context, Poll}
+    task::{Context, Poll},
+    fmt
 };
 use crate::spawn_task;
 
@@ -11,30 +12,33 @@ async fn async_promise<T, E>(future: impl Future<Output = Result<T, E>> + 'stati
    sender.send(result).unwrap();
 }
 
-async fn callback_promise<T, E>(res: impl FnOnce(T) + 'static, rej: impl FnOnce(E) + 'static, callback: impl FnOnce( Box<dyn FnOnce(T)> , Box<dyn FnOnce(E)> ) ) {
-    callback(
-        Box::new(res),
-        Box::new(rej)
-    );
-} 
+pub struct Promise<R>(Receiver<R>);
 
-async fn ready_promise<T, E>(ready: Result<T, E>, sender: Sender<Result<T, E>>) {
-    sender.send(ready).unwrap();
-}
+impl<R:'static> Promise<R> {
 
-pub type ResultCallback<T> = Box<dyn Fn(T)>;
+    pub fn new(callback: impl FnOnce() -> R + 'static) -> Self {
+        let (sender, receiver) = channel::<R>();
+        spawn_task(async move{sender.send(callback()).unwrap();} );
+        
+        Self(
+            receiver
+        )
+    }
 
-pub struct Promise<T, E>(Receiver<Result<T, E>>);
+    pub fn future(future: impl Future<Output = R> + 'static) -> Self {
+        let (sender, receiver) = channel::<R>();
+        spawn_task(async move{sender.send(future.await).unwrap()});
 
-impl<T:'static, E:'static> Promise<T, E> {
+        Self(
+            receiver
+        )
+    }
 
-    pub fn new(callback: impl FnOnce(Box<dyn FnOnce(T)> , Box<dyn FnOnce(E)>) + 'static) -> Self {
-        let (sender, receiver) = channel::<Result<T, E>>();
-        let sender_clone = sender.clone();
+    pub fn callback(callback: impl FnOnce(Box<dyn FnOnce(R)>) + 'static) -> Self {
+        let (sender, receiver) = channel::<R>();
+        let res= move |value:R| sender.send(value).unwrap();
 
-        let res= move |value:T| sender.send(Ok(value)).unwrap();
-        let rej = move |value: E| sender_clone.send(Err(value)).unwrap();
-        spawn_task(callback_promise(res, rej, callback));
+        spawn_task(async{callback(Box::new(res))});
         
         
         Self(
@@ -42,53 +46,32 @@ impl<T:'static, E:'static> Promise<T, E> {
         )
     }
 
-    pub fn future(future: impl Future<Output = Result<T, E>> + 'static) -> Self {
-        let (sender, receiver) = channel::<Result<T, E>>();
-        spawn_task(async_promise(future, sender));
+    /*fn ready(result:R) -> Self {
+        let (sender, receiver) = channel::<R>();
+        spawn_task(async move{sender.send(result).unwrap();} );
 
         Self(
             receiver
         )
+    }*/
+
+    pub fn then<T:'static>(self, callback: impl FnOnce(R) -> T + 'static) -> Promise<T> {
+        self.then_future(async move|temp| {
+            callback(temp)
+        })
     }
 
-    fn ready(result:Result<T, E>) -> Self {
-        let (sender, receiver) = channel::<Result<T, E>>();
-        spawn_task(ready_promise(result, sender));
-        Self(
-            receiver
-        )
-    }
-
-    pub fn then<R:'static>(self, callback: impl FnOnce(Box<dyn FnOnce(R)> , Box<dyn FnOnce(E)>) + 'static) -> Promise<R, E> {
-        Promise::new(callback)
-    }
-
-    pub fn then_future<F: Future<Output = Result<R, E>> + 'static, R:'static>(self, callback: impl FnOnce(T) -> F)  -> Promise<R, E>{
-        match self.0.recv() {
-            Ok(result) => match result {
-                Ok(t) => Promise::future(callback(t)),
-                Err(e) => Promise::ready(Err(e))
-            },
-            Err(_) => panic!("Promise was disconnected from Executor!")
-        }
-    }
-
-    pub fn error(self, callback: impl FnOnce(E)) {
-        match self.0.recv() {
-            Ok(result) => {
-                if let Err(e) = result {
-                    callback(e)
-                }
-            },
-            Err(_) => panic!("Promise was disconnected from Executor!")
-        }
+    pub fn then_future<F: Future<Output = T> + 'static, T:'static>(self, callback: impl FnOnce(R) -> F + 'static)  -> Promise<T>{
+        Promise::future(async move{
+            callback(self.await).await
+        })
     }
 }
 
-impl<T:'static, E:'static> Future for Promise<T, E> {
-    type Output = Result<T, E>;
+impl<R:'static> Future for Promise<R> {
+    type Output = R;
 
-    fn poll(self: std::pin::Pin<&mut Self>, ctx: &mut Context<'_>) -> Poll<Result<T, E>> {
+    fn poll(self: std::pin::Pin<&mut Self>, ctx: &mut Context<'_>) -> Poll<R> {
         match self.0.try_recv() {
             Ok(t) => Poll::Ready(t),
             Err(e) => if e == TryRecvError::Empty {
@@ -98,6 +81,12 @@ impl<T:'static, E:'static> Future for Promise<T, E> {
                 panic!("Promise was disconnected from Executor!")
             }
         }
+    }
+}
+
+impl<R:fmt::Debug> fmt::Debug for Promise<R> {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt.debug_struct("Promise").finish()
     }
 }
 
