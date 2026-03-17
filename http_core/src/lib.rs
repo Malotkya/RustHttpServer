@@ -19,6 +19,12 @@ pub mod version {
         pub minor: u8
     }
 
+    impl Version {
+        pub fn new() -> Self {
+            Self { major: 1, minor: 1 }
+        }
+    }
+
     impl ToString for Version {
         fn to_string(&self) -> String {
             format!("HTTP/{}.{}", self.major, self.minor)
