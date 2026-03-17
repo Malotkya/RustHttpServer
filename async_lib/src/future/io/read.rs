@@ -91,6 +91,18 @@ impl<T: AsRef<[u8]> + Unpin> AsyncRead for io::Cursor<T> {
     }
 }
 
+impl<R: AsyncRead> AsyncRead for *mut R {
+    fn poll_read(self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<io::Result<usize>> {
+        let pin = unsafe {
+            Pin::new_unchecked(
+                &mut (*self.as_mut_unchecked())
+            )
+        };
+
+        pin.poll_read(cx, buf)
+    }
+}
+
 pub trait AsyncBufRead: AsyncRead {
     fn poll_fill_buf(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<&[u8]>>;
 
