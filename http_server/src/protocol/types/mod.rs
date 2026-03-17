@@ -13,7 +13,6 @@ const CHUNK_SEPERATOR: &'static [u8] = b"\r\n";
 #[derive(Debug)]
 pub enum ParseStreamError {
     ReadError(std::io::Error),
-    BufferTaken,
     TryOffset,
     ParseError(usize)
 }
@@ -22,9 +21,8 @@ impl ParseStreamError {
     fn code(&self) -> u8 {
         match self {
             Self::ReadError(_) => 0,
-            Self::BufferTaken => 1,
-            Self::TryOffset => 2,
-            Self::ParseError(_) => 3
+            Self::TryOffset => 1,
+            Self::ParseError(_) => 2
         }
     }
 }
@@ -39,7 +37,6 @@ impl fmt::Display for ParseStreamError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::ReadError(e) => write!(f, "{}", e),
-            Self::BufferTaken => write!(f, "Stream Buffer is taken!"),
             Self::TryOffset => write!(f, "Invalid character at start!"),
             Self::ParseError(index) => write!(f, "Invalid character found at: {index}!")
         }
@@ -85,7 +82,7 @@ fn next_chunk_wrapper(buffer: &[u8], index: usize) -> Result<Option<(usize, usiz
 }
 
 pub struct StreamParser<S> where S: AsyncRead{
-    reader: Option<S>,
+    reader: S,
     buffer: LinkedList<Chunk>,
     end: bool
 }
@@ -93,26 +90,22 @@ pub struct StreamParser<S> where S: AsyncRead{
 impl<S> StreamParser<S>  where S: AsyncRead{
     pub fn new(stream:S) -> Self {
         Self {
-            reader: Some(stream),
+            reader: stream,
             buffer: LinkedList::new(),
             end: false
         }
     }
 
-    pub fn take_reader(&mut self) -> Option<AsyncBufReader<S>> {
-        self.reader.take().map(|s|AsyncBufReader::new(s))
+    pub fn take_reader(self) -> S {
+        self.reader
     }
 
     pub async fn parse(&mut self) -> Result<Option<Chunk>, ParseStreamError> {
-        if self.reader.is_none() {
-            return Err(ParseStreamError::BufferTaken);
-        }
-
         let next = self.buffer.pop_front();
         if next.is_some() || self.end{
             return Ok(next);
         }
-        let mut reader = AsyncBufReader::new(self.reader.as_mut().unwrap());
+        let mut reader = AsyncBufReader::new(&mut self.reader);
         let mut index: usize = 0;
         let sep_len = CHUNK_SEPERATOR.len();
         let peek_buffer = reader.fill_buf().await

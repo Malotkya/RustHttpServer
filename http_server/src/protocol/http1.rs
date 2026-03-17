@@ -25,10 +25,10 @@ use super::{
 /// %CRLF%
 /// [BODY]
 /// 
-pub async fn build_request<S>(stream:S, hostname:&str, port:u16) -> std::result::Result<RequestBuilder<S>, BuildError>
+pub async fn build_request<S>(stream:&mut S, hostname:&str, port:u16) -> std::result::Result<RequestBuilder<S>, BuildError>
     where S: AsyncRead {
 
-    let mut parser = StreamParser::new(stream);
+    let mut parser = StreamParser::new(stream as *mut S);
 
     let start_line = match parser.parse().await {
         Ok(Some(line)) => line,
@@ -98,7 +98,7 @@ pub async fn build_request<S>(stream:S, hostname:&str, port:u16) -> std::result:
             method,
             headers,
             version,
-            Some(parser.take_reader().unwrap())
+            Some(parser.take_reader() as *mut S)
         )
     )
 }

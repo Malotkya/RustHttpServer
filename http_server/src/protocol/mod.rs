@@ -1,14 +1,10 @@
 use std::fmt;
 use http_core::{
     method::Method,
-    error::{HttpError, HttpErrorKind},
     request::RequestBuilder,
     response::Response,
-    version::Version
-};
-use crate::connection::{
-    ConnectionError,
-    write_connection_error_response
+    version::Version,
+    error::{HttpError, HttpErrorKind, ValidHttpError}
 };
 use async_lib::{
     io::{AsyncRead, Result},
@@ -54,47 +50,25 @@ impl fmt::Display for BuildError {
     }
 }
 
-async fn build_protocol_request<S: AsyncRead>(stream:S, hostname:&str, port:u16) -> std::result::Result<RequestBuilder<S>, ConnectionError> {
-    match http1::build_request(stream, hostname, port).await {
-        Ok(builder) => Ok(builder),
-        Err(e) => match e {
-            BuildError::MissingVersion(method, uri) => {
-                http0::build_request(port, method, uri).map_err(|e|ConnectionError::ParseError(format!("{}", e)))
-            },
-            BuildError::IoError(e) => Err(ConnectionError::IoError(e)),
-            err => Err(ConnectionError::ParseError(format!("{}", err)))
+impl Into<HttpError> for BuildError {
+    fn into(self) -> HttpError {
+        match self {
+            Self::IoError(_) => HttpErrorKind::InternalServerError.err(),
+            Self::ParseError(_) => HttpErrorKind::InternalServerError.err(),
+            bad_req => HttpError::new(
+                HttpErrorKind::BadRequest,
+                &bad_req.to_string()
+            )
         }
     }
 }
 
-pub async fn build_request(stream: TcpStream, resp: &mut TcpStream, hostname:&str, port:u16) -> Result<Option<RequestBuilder<TcpStream>>> {
-    match build_protocol_request(stream, hostname, port).await {
-        Ok(req) => Ok(Some(req)),
-        Err(ConnectionError::IoError(e)) => {
-            write_connection_error_response(
-                resp,
-                Response::from_error(
-                    HttpError::new(
-                        HttpErrorKind::InternalServerError,
-                        &format!("{}", e)
-                    )
-                )
-            ).await?;
-            Err(e)
-        },
-        Err(ConnectionError::ParseError(str)) => {
-            let message = Response::from_error(
-                HttpError::new(
-                    HttpErrorKind::BadRequest,
-                    &str
-                )
-            );
-            println!("??? * {:?}", message);
-            write_connection_error_response(
-                resp,
-                message
-            ).await?;
-            Ok(None)
+pub async fn build_request<S: AsyncRead>(stream:&mut S, hostname:&str, port:u16) -> std::result::Result<RequestBuilder<S>, BuildError> {
+    match http1::build_request(stream, hostname, port).await {
+        Ok(builder) => Ok(builder),
+        Err(e) => match e {
+            BuildError::MissingVersion(method, uri) =>  http0::build_request(port, method, uri),
+            err => Err(err)
         }
     }
 }

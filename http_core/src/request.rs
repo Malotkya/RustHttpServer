@@ -65,16 +65,16 @@ pub struct RequestBuilder<STREAM: AsyncRead> {
     pub version:Version,
     pub method: Method,
     pub headers: Headers,
-    buffer: Option<AsyncBufReader<STREAM>>,
+    buffer: Option<AsyncBufReader<*mut STREAM>>,
     body_used:bool
 }
 
 impl<S: AsyncRead> RequestBuilder<S> {
-    pub fn new(url:Url, method:Method, headers:Headers, version:Version, stream:Option<AsyncBufReader<S>>) -> Self{
+    pub fn new(url:Url, method:Method, headers:Headers, version:Version, stream:Option<*mut S>) -> Self{
         Self {
             url, method, headers,
             version,
-            buffer: stream,
+            buffer: stream.map(|s|AsyncBufReader::new(s)),
             body_used: false
         }
     }

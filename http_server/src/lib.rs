@@ -1,16 +1,18 @@
 #![feature(str_from_raw_parts)]
 use http_core::{
-    request::RequestBuilder,
-    response::Response
+    request::RequestBuilder, response::Response, version::Version
 };
 use async_lib::{
-    executor::*, net::{TcpListener, TcpStream}, io::ErrorKind
+    executor::*, net::{TcpStream, tcp_listener_thread},
 };
 use arguments::*;
 pub use http_macro::server;
+use protocol::{
+    build_request,
+    write_response
+};
 
 mod arguments;
-pub(crate) mod connection;
 mod protocol;
 
 
@@ -85,34 +87,34 @@ pub trait Server: 'static + Sized + Sync + Send + Clone {
 
     fn handle_request(&self, req:&mut RequestBuilder<TcpStream>) -> impl Future<Output = Response>;
 
-    fn start(&self, /*callback:Option<impl AsyncCallback<()>*/) -> std::io::Result<()> {
+    fn start(&self) -> std::io::Result<()> {
         let server = self.clone();
-        let listener = TcpListener::bind(server.address())?;
 
         init_async_thread_pool(self.threads());
-        let _ = queue_job(move||{
-            println!("Listening at {}", server.address());
+        let _ = queue_job(tcp_listener_thread(server.address(), move|mut stream|{
+            let clone = server.clone();
 
-            while is_running() {
-                let clone = server.clone();
-
-                match listener.sync_accept() {
-                    Ok(conn) => spawn_task(async move{
-                        if let Err(e) = connection::handle_connection(clone, conn.0).await {
-                            println!("Error: {}", e)
-                        }
-                    }),
-                    Err(e) => if e.kind() != ErrorKind::WouldBlock {
-                         println!("Connection Error: {}", e);
+            spawn_task(async move {
+                if let Err(e) = match build_request(&mut stream, clone.hostname(), clone.port()).await {
+                    Ok(mut req) => {
+                        let response = clone.handle_request(&mut req).await;
+                        write_response(&mut stream, response, req.version).await
+                    },
+                    Err(err) => {
+                        write_response(
+                            &mut stream,
+                            Response::from_error(err.into()),
+                            Version::new()
+                        ).await
                     }
+                } {
+                    println!("ERROR!: {}", e)
                 }
-            }
-        });
+            })
+        })?);    
 
-        println!("Starting");
         start();
 
-        println!("Good bye!");
         Ok(())
     }
 
