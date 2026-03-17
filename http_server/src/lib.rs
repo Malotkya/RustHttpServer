@@ -1,17 +1,10 @@
 #![feature(str_from_raw_parts)]
-
 use http_core::{
     request::RequestBuilder,
     response::Response
 };
 use async_lib::{
-    net::{TcpStream, TcpListener},
-    executor::*
-};
-use std::{
-    rc::Rc, sync::{
-        Arc, mpsc
-    }
+    executor::*, net::{TcpListener, TcpStream}, io::ErrorKind
 };
 use arguments::*;
 pub use http_macro::server;
@@ -84,7 +77,7 @@ pub fn get_server_opts(config_filename:Option<&str>) -> std::io::Result<ServerOp
     Ok(ServerOpts { port, hostname, threads })
 }
 
-pub trait Server: 'static + Sized + Clone {
+pub trait Server: 'static + Sized + Sync + Send + Clone {
     fn new(opts:ServerOpts) -> Self;
     fn hostname(&self) -> &str;
     fn port(&self) -> u16;
@@ -93,10 +86,31 @@ pub trait Server: 'static + Sized + Clone {
     fn handle_request(&self, req:&mut RequestBuilder<TcpStream>) -> impl Future<Output = Response>;
 
     fn start(&self, /*callback:Option<impl AsyncCallback<()>*/) -> std::io::Result<()> {
-        let (listener, reciever) = generate_listeners(self.clone())?;
+        let server = self.clone();
+        let listener = TcpListener::bind(server.address())?;
 
-        init_thread_pool_with_listener(self.threads(), listener);
-        start_with_callback(reciever);
+        init_async_thread_pool(self.threads());
+        let _ = queue_job(move||{
+            println!("Listening at {}", server.address());
+
+            while is_running() {
+                let clone = server.clone();
+
+                match listener.sync_accept() {
+                    Ok(conn) => spawn_task(async move{
+                        if let Err(e) = connection::handle_connection(clone, conn.0).await {
+                            println!("Error: {}", e)
+                        }
+                    }),
+                    Err(e) => if e.kind() != ErrorKind::WouldBlock {
+                         println!("Connection Error: {}", e);
+                    }
+                }
+            }
+        });
+
+        println!("Starting");
+        start();
 
         println!("Good bye!");
         Ok(())
@@ -105,43 +119,6 @@ pub trait Server: 'static + Sized + Clone {
     fn address(&self) -> String {
         format!("{}:{}", self.hostname(), self.port())
     }
-}
-
-
-fn generate_listeners<S:Server>(server:S) -> std::io::Result<(impl Callback<()>, impl AsyncCallback<()>)> {
-    let (conn_send, conn_recv) = mpsc::channel::<TcpStream>();
-    let conn_send = Arc::new(conn_send);
-    let conn_recv = Rc::new(conn_recv);
-
-    let listener = TcpListener::bind(server.address())?;
-
-    Ok((move ||{
-        match listener.sync_accept() {
-            Ok(conn) => {
-                conn_send.clone().send(conn.0).unwrap();
-            },
-            Err(e) => if e.kind() != std::io::ErrorKind::WouldBlock {
-                println!("ERROR: {}", e)
-            }
-        }
-    },
-    async_lib::async_fn!(
-        clone=(server, conn_recv),
-        {
-            match conn_recv.try_recv() {
-                Ok(stream) => {
-                    spawn_task(async move{
-                        if let Err(e) = connection::handle_connection(server, stream).await {
-                            println!("Error: {}", e)
-                        }
-                    });
-                },
-                Err(e) => if e != mpsc::TryRecvError::Empty {
-                    panic!("{}", e)
-                }
-            }
-        }
-    )))
 }
 
 pub mod router {
