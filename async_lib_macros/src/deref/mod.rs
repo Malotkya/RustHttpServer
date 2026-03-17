@@ -55,44 +55,47 @@ impl DerefArgs {
     }
 }
 
-fn find_inner_trait(list:&syn::Fields) -> Option<syn::Ident> {
+fn find_inner_trait(list:&syn::Fields) -> Result<Option<syn::Ident>, &'static str> {
     let mut it = list.iter();
-    let first = it.next().map(|a|a.ident.as_ref()).flatten();
-
-    if let Some(ident) = first {
-        match ident.to_string().as_str() {
-            "io" | "inner" => return Some(ident.clone()),
-            _ => {}
+    let first = it.next();
+    
+    if let Some(field) = first {
+        match &field.ident {
+            None => return Ok(None),
+            Some(ident) => match ident.to_string().as_str() {
+                "io" | "inner" => return Ok(Some(ident.clone())),
+                _ => {}
+            }
         }
     }
 
     while let Some(next) = it.next().map(|a|a.ident.as_ref()).flatten() {
         match next.to_string().as_str() {
-            "io" | "inner" => return Some(next.clone()),
+            "io" | "inner" => return Ok(Some(next.clone())),
             _ => {}
         }
     }
 
-    first.map(|i|i.clone())
+    first.map(|f|f.ident.clone())
+        .ok_or("Unable to find inner trait!")
 }
 
 pub fn implement_deref_traits(list: HashSet<AsyncTraits>, item: syn::ItemStruct) -> proc_macro2::TokenStream {
     let struct_name = &item.ident;
-    let trait_name = match find_inner_trait(&item.fields) {
-        Some(ident) => ident,
-        None => panic!("Unable to find inner trait!")
+    let struct_generics = &item.generics;
+    let trait_name = match find_inner_trait(&item.fields).unwrap() {
+        Some(name) => quote::quote!(#name),
+        None => quote::quote!(0)
     };
-
-    //panic!("{}", trait_name);
 
     let mut output = quote::quote!(#item);
 
     for item in list {
         match item {
-            AsyncTraits::Read => output.extend(read::implement_deref_read(struct_name, &trait_name)),
-            AsyncTraits::BufRead => output.extend(read::implement_deref_read_buf(struct_name, &trait_name)),
-            AsyncTraits::Write => output.extend(write::implement_deref_write(struct_name, &trait_name)),
-            AsyncTraits::Seek => output.extend(seek::implement_deref_seek(struct_name, &trait_name))
+            AsyncTraits::Read => output.extend(read::implement_deref_read(struct_name, struct_generics, &trait_name)),
+            AsyncTraits::BufRead => output.extend(read::implement_deref_read_buf(struct_name, struct_generics, &trait_name)),
+            AsyncTraits::Write => output.extend(write::implement_deref_write(struct_name, struct_generics, &trait_name)),
+            AsyncTraits::Seek => output.extend(seek::implement_deref_seek(struct_name, struct_generics, &trait_name))
         }
     }
 

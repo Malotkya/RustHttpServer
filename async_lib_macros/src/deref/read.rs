@@ -1,7 +1,7 @@
 
-pub fn implement_deref_read(struct_name:&syn::Ident, trait_name: &syn::Ident) -> proc_macro2::TokenStream {
+pub fn implement_deref_read(struct_name:&syn::Ident, struct_generics:&syn::Generics, trait_name:&proc_macro2::TokenStream) -> proc_macro2::TokenStream {
     quote::quote!{
-        impl crate::future::io::AsyncRead for #struct_name {
+        impl #struct_generics crate::future::io::AsyncRead for #struct_name #struct_generics{
             fn poll_read(mut self:std::pin::Pin<&mut Self>, cx: &mut std::task::Context<'_>, buf: &mut [u8]) -> std::task::Poll<std::io::Result<usize>> {
                 use std::io::Read;
 
@@ -19,9 +19,9 @@ pub fn implement_deref_read(struct_name:&syn::Ident, trait_name: &syn::Ident) ->
     }
 }
 
-pub fn implement_deref_read_buf(struct_name:&syn::Ident, trait_name: &syn::Ident) -> proc_macro2::TokenStream {
+pub fn implement_deref_read_buf(struct_name:&syn::Ident, struct_generics:&syn::Generics, trait_name:&proc_macro2::TokenStream) -> proc_macro2::TokenStream {
     quote::quote!{
-        impl crate::future::io::AsyncBufRead for #struct_name {
+        impl #struct_generics crate::future::io::AsyncBufRead for #struct_name #struct_generics{
             fn poll_fill_buf(mut self:std::pin::Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> std::task::Poll<std::io::Result<&[u8]>> {
                 use std::io::BufRead;
 
