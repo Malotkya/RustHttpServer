@@ -23,14 +23,14 @@ impl fmt::Display for ResponseError {
 }
 
 pub enum Chunk{
-    Owned(Vec<u8>),
+    Buffer(Vec<u8>),
     String(String)
 }
 
 impl Chunk {
     pub fn value<'a>(&'a self) -> &'a [u8] {
         match self {
-            Self::Owned(v) => v,
+            Self::Buffer(v) => v,
             Self::String(s) => s.as_bytes()
         }
     }
@@ -40,14 +40,14 @@ impl ToString for Chunk {
     fn to_string(&self) -> String {
         match self {
             Self::String(s) => s.clone(),
-            Self::Owned(v) => unsafe{ String::from_utf8_unchecked(v.clone()) }
+            Self::Buffer(v) => unsafe{ String::from_utf8_unchecked(v.clone()) }
         }
     }
 }
 
 impl From<Vec<u8>> for Chunk {
     fn from(value: Vec<u8>) -> Self {
-        Self::Owned(value)
+        Self::Buffer(value)
     }
 }
 
@@ -65,13 +65,13 @@ impl From<&str> for Chunk{
 
 impl From<&[u8]> for Chunk {
     fn from(value: &[u8]) -> Self {
-        Self::Owned(value.to_vec())
+        Self::Buffer(value.to_vec())
     }
 }
 
 impl From<char> for Chunk {
     fn from(value: char) -> Self {
-        Self::Owned(vec![value as u8])
+        Self::Buffer(vec![value as u8])
     }
 }
 
@@ -93,7 +93,7 @@ impl Response {
         }
     }
 
-    pub fn write<T>(&mut self, data:T) -> Result<&Self> where T: Into<Chunk> {
+    pub fn write<T>(&mut self, data:T) -> Result<&mut Self> where T: Into<Chunk> {
         if self.sent {
             ResponseError::ResponseSent.send()
         } else {
@@ -103,7 +103,7 @@ impl Response {
         
     }
 
-    pub fn http<N:Node>(&mut self, http:N) ->Result<&Self> {
+    pub fn http<N:Node>(&mut self, http:N) ->Result<&mut Self> {
         if self.sent {
             ResponseError::ResponseSent.send()
         } else if let Some(header) = self.headers.get("Content-Type")
@@ -118,7 +118,7 @@ impl Response {
         }
     }
 
-    pub fn json(&mut self, json:&JsonValue) -> Result<&Self> {
+    pub fn json(&mut self, json:&JsonValue) -> Result<&mut Self> {
         if self.sent {
             ResponseError::ResponseSent.send()
         } else if let Some(header) = self.headers.get("Content-Type")
