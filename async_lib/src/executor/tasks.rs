@@ -1,13 +1,13 @@
 use std::{
     sync::{
+        Arc,
         atomic::{
             AtomicU64, Ordering
         }
     },
-    task::{Context, Poll, Waker}
+    task::{Context, Poll, Wake, Waker}
 };
 use super::{
-    waker::TaskWaker,
     AtomicQueue, AtomicMap, AtomicFuture
 };
 
@@ -135,4 +135,32 @@ impl TaskHandler {
             }
         }
     }
+}
+
+pub(crate) struct TaskWaker {
+    task:TaskId,
+    queue: AtomicQueue<TaskId>
+}
+
+impl TaskWaker {
+    pub fn new(task:TaskId, queue:AtomicQueue<TaskId>) -> Waker {
+        Waker::from(Arc::new(TaskWaker{
+            task, queue
+        }))
+    }
+
+    fn wake_task(&self) {
+        self.queue.unique_push(self.task);
+    }
+}
+
+impl Wake for TaskWaker {
+    fn wake(self: Arc<Self>) {
+        self.wake_task()
+    }
+
+    fn wake_by_ref(self: &Arc<Self>) {
+        self.wake_task()
+    }
+
 }
