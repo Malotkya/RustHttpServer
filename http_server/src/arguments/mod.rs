@@ -39,8 +39,6 @@ pub(crate) fn get_cmd_line_args() -> CommandLineArguments {
                     panic!("Unknown command line argument: {key}!")
                 }
             }
-        } else {
-           panic!("Unknown command line argument: {input}!")
         }
     }
 
