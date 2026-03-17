@@ -10,7 +10,7 @@ mod future;
 pub use future::*;
 
 #[allow(unused_imports)]
-pub(crate) use executor::{spawn_task, await_thread_job, spawn_thread_job};
+pub(crate) use executor::{spawn_task, queue_job};
 
 #[macro_export]
 macro_rules! async_fn {

@@ -48,7 +48,7 @@ impl OpenOptions {
         let data = canonicalize(path)?;
         let inner = Arc::new(self.inner);
 
-        let file = crate::await_thread_job(move |_|{
+        let file = crate::queue_job(move ||{
             inner.open(data.clone())
         }).await?;
 
