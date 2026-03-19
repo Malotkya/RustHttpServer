@@ -12,7 +12,6 @@ const HTTPS_DEFAULT:u16 = 443;
 #[derive(Debug)]
 pub struct Search(HashMap<String, String>);
 
-#[allow(dead_code)]
 impl Search {
     pub fn new() -> Self {
         Self {
