@@ -7,18 +7,6 @@ mod promise;
 
 pub use promise::Promise;
 
-pub(crate) fn clone_io_result<T: Clone>(result: &io::Result<T>) -> io::Result<T> {
-    match result {
-        Ok(t) => Ok(t.clone()),
-        Err(e) => Err(
-            std::io::Error::new(
-                e.kind(),
-                e.to_string()
-            )
-        )
-    }
-}
-
 pub(crate) struct Done<T>(Option<T>);
 
 impl<T> Done<T>  {

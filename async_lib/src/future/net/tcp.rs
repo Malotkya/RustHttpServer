@@ -96,7 +96,12 @@ impl TcpListener {
     pub fn try_clone(&self) -> io::Result<Self> {
         Ok(Self{
             io: self.io.try_clone()?,
-            nonblocking: super::clone_io_result(&self.nonblocking)
+            nonblocking: self.nonblocking.as_ref()
+                .map(|r|*r)
+                .map_err(|e|io::Error::new(
+                    e.kind().clone(),
+                    e.to_string()
+                ))
         })
     }
 }
