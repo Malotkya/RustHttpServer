@@ -4,7 +4,7 @@ use std::{
     task::{Context, Poll},
     str::FromStr
 };
-use crate::EventEmitter;
+use crate::event::*;
 use super::{Stream, FusedStream, Sink};
 
 mod source;
@@ -18,7 +18,7 @@ pub struct Pipe<
 > {
     source: *mut Source,
     target: *mut Target,
-    emitter: EventEmitter,
+    emitter: EventMap,
     done: bool
 }
 
@@ -80,7 +80,7 @@ impl<
         let mut pipe = Self {
             source: source as *mut Source,
             target: target as *mut Target,
-            emitter: EventEmitter::new(),
+            emitter: new_emmiter(),
             done: false
         };
 
@@ -114,20 +114,42 @@ impl<
         unsafe{ Pin::new_unchecked(&mut (*self.target) ) }
     }
 
-    pub fn on<A: FromStr + 'static, E: Fn(A) + Sync + Send + 'static>(&mut self, event: &str, callback:E) -> String {
+}
+
+impl<
+    Target: TargetPipe<Chunk: From<<Source as Stream>::Item>> + 'static,
+    Source: SourcePipe<Chunk: Into<Target::Chunk>> + 'static
+> EventEmitter for Pipe<Target, Source> {
+    fn on(&mut self, event:&str, callback: impl EventListener) -> String {
         self.emitter.on(event, callback)
     }
 
-    pub fn once<A: FromStr + 'static, E: Fn(A) + Sync + Send + 'static>(&mut self, event: &str, callback:E) -> String {
-       self.emitter.once(event, callback)
+    fn on_async(&mut self, event:&str, callback: impl AsyncEventListener) -> String {
+        self.emitter.on_async(event, callback)
     }
 
-    pub fn remove_listener(&mut self, id: &str) -> bool {
+    fn once(&mut self, event:&str, callback: impl EventListener) -> String {
+        self.emitter.once(event, callback)
+    }
+
+    fn once_async(&mut self, event:&str, callback: impl AsyncEventListener) -> String {
+        self.emitter.once_async(event, callback)
+    }
+
+    fn on_limited(&mut self, event:&str, callback: impl EventListener, limit:usize) -> String {
+        self.emitter.on_limited(event, callback, limit)
+    }
+
+    fn on_limited_async(&mut self, event:&str, callback: impl AsyncEventListener, limit:usize) -> String {
+        self.emitter.on_limited_async(event, callback, limit)
+    }
+
+    fn remove_listener(&mut self, id: &str) -> bool {
         self.emitter.remove_listener(id)
     }
 
-    pub fn emit<T: ToString>(&mut self, event: &str, value: T) {
-        self.emitter.emit(event, value)
+    fn emit<Event: ToString, Args:ToString>(&mut self, event:Event, args:Args) {
+        self.emitter.emit(event, args);
     }
 }
 
