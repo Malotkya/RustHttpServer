@@ -1,7 +1,6 @@
 #![feature(associated_type_defaults)]
 #![feature(async_iterator)]
 #![feature(trait_alias)]
-#![allow(dead_code)]
 
 mod event;
 pub use event::{EventEmitter, EventEmitterWrapper};
@@ -10,7 +9,7 @@ mod future;
 pub use future::*;
 
 #[allow(unused_imports)]
-pub(crate) use executor::{spawn_task, queue_job};
+pub(crate) use executor::{spawn_task, queue_job, queue_process};
 
 #[macro_export]
 macro_rules! async_fn {

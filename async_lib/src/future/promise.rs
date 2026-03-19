@@ -1,16 +1,11 @@
 use std::{
     sync::{
-        mpsc::{Sender, Receiver, TryRecvError, channel}
+        mpsc::{Receiver, TryRecvError, channel}
     },
     task::{Context, Poll},
     fmt
 };
 use crate::spawn_task;
-
-async fn async_promise<T, E>(future: impl Future<Output = Result<T, E>> + 'static, sender:Sender<Result<T, E>>) {
-   let result = future.await;
-   sender.send(result).unwrap();
-}
 
 pub struct Promise<R>(Receiver<R>);
 

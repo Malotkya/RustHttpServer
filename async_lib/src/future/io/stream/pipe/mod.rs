@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 use std::{
     pin::{pin, Pin},
     task::{Context, Poll},

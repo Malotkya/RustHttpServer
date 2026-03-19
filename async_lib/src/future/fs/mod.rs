@@ -35,7 +35,7 @@ pub use file::File;
 mod open_options;
 pub use open_options::OpenOptions;
 mod read_dir;
-pub use read_dir::ReadDir;
+pub use read_dir::*;
 
 asyncify!(copy(from: P, to: Q) -> io::Result<u64>);
 asyncify!(create_dir(path: P) -> io::Result<()>);
