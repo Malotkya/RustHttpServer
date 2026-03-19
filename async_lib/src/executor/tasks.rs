@@ -3,14 +3,19 @@ use std::{
         Arc,
         atomic::{
             AtomicU64, Ordering
-        }
+        },
+        LazyLock
     },
     task::{Context, Poll, Wake, Waker}
 };
 use super::{
-    AtomicQueue, AtomicMap, AtomicFuture
+    atomic::*,
+    thread::{THREAD_MANAGER, ThreadProcess},
+    RUNNING,
+    DEFAULT_QUEUE_SIZE
 };
 
+pub(crate) static TASK_MANAGER   :LazyLock<TaskHandler> = LazyLock::new(||TaskHandler::new(DEFAULT_QUEUE_SIZE));
 
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -49,6 +54,7 @@ pub(crate) struct TaskHandler {
     tasks: AtomicMap<TaskId, Task>,
     waker_cache: AtomicMap<TaskId, Waker>,
     task_queue: AtomicQueue<TaskId>,
+    thread_id: AtomicOption<usize>
 }
 
 unsafe impl Send for TaskHandler {}
@@ -59,6 +65,7 @@ impl Clone for TaskHandler {
             tasks: self.tasks.clone(),
             waker_cache: self.waker_cache.clone(),
             task_queue: self.task_queue.clone(),
+            thread_id: self.thread_id.clone()
         }
     }
 }
@@ -69,6 +76,7 @@ impl TaskHandler {
             tasks: AtomicMap::new(),
             waker_cache: AtomicMap::new(),
             task_queue: AtomicQueue::new("Task", queue_size),
+            thread_id: AtomicOption::none()
         }
     }
 
@@ -78,14 +86,16 @@ impl TaskHandler {
 
         self.tasks.insert(task_id, task);
         self.task_queue.push(task_id);
-    }
 
-    pub fn len(&self) -> usize {
-        self.task_queue.len()
+        self.unpark();
     }
 
     pub fn is_empty(&self) -> bool {
         self.task_queue.is_empty()
+    }
+
+    pub fn update_queue_capacity(&self, capcity:usize) {
+        self.task_queue.set_capacity(capcity);
     }
 
     pub fn run_next_task(&self) {
@@ -135,6 +145,29 @@ impl TaskHandler {
             }
         }
     }
+
+    pub fn idle_if_empty(&self) {
+        if self.task_queue.is_empty() && let Some(id) = self.thread_id.try_unwrap() {
+            THREAD_MANAGER.park(*id);
+        }
+    }
+
+    fn unpark(&self) {
+        if let Some(id) = self.thread_id.try_unwrap() {
+            THREAD_MANAGER.unpark(*id);
+        }
+    }   
+
+    pub fn thread_main(&'static self, id:usize) -> impl ThreadProcess {
+        self.thread_id.set(Some(id));
+
+        return || {
+            while RUNNING.load(Ordering::Relaxed) {
+                self.idle_if_empty();
+                self.run_all_tasks();
+            }
+        };
+    }
 }
 
 pub(crate) struct TaskWaker {
@@ -162,5 +195,4 @@ impl Wake for TaskWaker {
     fn wake_by_ref(self: &Arc<Self>) {
         self.wake_task()
     }
-
 }
