@@ -3,7 +3,8 @@ use http_core::{
     request::RequestBuilder, response::Response, version::Version
 };
 use async_lib::{
-    executor::*, net::{TcpStream, tcp_listener_thread},
+    executor::*,
+    net::TcpStream
 };
 use arguments::*;
 pub use http_macro::server;
@@ -11,10 +12,11 @@ use protocol::{
     build_request,
     write_response
 };
+use process::*;
 
 mod arguments;
 mod protocol;
-
+mod process;
 
 pub struct ServerOpts {
     pub port:Option<u16>,
@@ -90,9 +92,9 @@ pub trait Server: 'static + Sized + Sync + Send + Clone {
     fn start(&self) -> std::io::Result<()> {
         let server = self.clone();
 
-        queue_process(tcp_listener_thread(server.address(), move|mut stream|{
+        queue_process(read_stdin);
+        queue_process(tcp_listener(server.address(), move|mut stream|{
             let clone = server.clone();
-            //unpark_main();
 
             spawn_task(async move {
                 if let Err(e) = match build_request(&mut stream, clone.hostname(), clone.port()).await {
@@ -114,22 +116,8 @@ pub trait Server: 'static + Sized + Sync + Send + Clone {
                     println!("ERROR!: {}", e)
                 }
             });
-        })?);
-
-        queue_process(||{
-            let stdin = std::io::stdin();
-            let mut input = String::new();
-
-            println!("Enter \"quit\" to shutdown server!");
-            while is_running() {
-                stdin.read_line(&mut input).unwrap();
-
-                match input.to_lowercase().trim() {
-                    "quit" => shut_down(),
-                    _ => println!("Unknown command \"{}\"", input)
-                }
-            }
-        });
+        })? );
+        
 
         start_async_thread_pool(self.threads());
 
