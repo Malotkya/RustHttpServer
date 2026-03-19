@@ -1,25 +1,19 @@
 use std::{
     sync::{
-        LazyLock,
-        atomic::{AtomicBool, Ordering},
-        
+        atomic::{AtomicBool, Ordering}
     },
 };
-
-mod tasks;
 use tasks::*;
-mod thread;
-pub(crate) use thread::*;
+use thread::*;
+
 mod atomic;
-pub(crate) use atomic::*;
+pub mod tasks;
+pub mod thread;
 
 pub(crate) const DEFAULT_QUEUE_SIZE: usize = 1000;
-
-pub trait Thread<R> = FnOnce() -> R + Send + Sync + 'static;
-
 pub(crate) static RUNNING: AtomicBool = AtomicBool::new(false);
-static TASK_MANAGER   :LazyLock<TaskHandler> = LazyLock::new(||TaskHandler::new(DEFAULT_QUEUE_SIZE));
-static THREAD_MANAGER :LazyLock<ThreadManager> = LazyLock::new(||ThreadManager::new(DEFAULT_QUEUE_SIZE)); 
+
+
 
 #[inline]
 pub fn spawn_task(future: impl Future<Output = ()> + 'static) {
@@ -27,8 +21,19 @@ pub fn spawn_task(future: impl Future<Output = ()> + 'static) {
 }
 
 #[inline]
-pub fn queue_job<R:Send + 'static>(func: impl Thread<R>) -> impl Future<Output = R> {
-    THREAD_MANAGER.queue_thread(func)
+pub fn queue_process(func: impl ThreadProcess) {
+    THREAD_MANAGER.queue_process(func);
+}
+
+#[inline]
+pub fn queue_job<R:Send + 'static>(func: impl ThreadJob<R>) -> impl Future<Output = R> {
+    THREAD_MANAGER.queue_job(func)
+}
+
+#[inline]
+pub fn set_queue_capacity(capcity:usize) {
+    TASK_MANAGER.update_queue_capacity(capcity);
+    THREAD_MANAGER.update_queue_capacity(capcity);
 }
 
 #[inline]
@@ -36,25 +41,14 @@ pub fn is_running() -> bool {
     RUNNING.load(Ordering::Relaxed)
 }
 
-pub fn init_async_thread_pool(thread_count:usize) {  
-    if thread_count == 0 {
-        panic!("Unable to initalize thread pool with zero threads!");
-    }
+pub fn start_async_thread_pool(thread_count:usize) {
+    assert_ne!(thread_count, 0, "Unable to initalize thread pool with zero threads!");
     
     THREAD_MANAGER.init(thread_count);
-}
-
-pub fn start() {
     RUNNING.store(true, Ordering::Relaxed);
-
-    while RUNNING.load(Ordering::Relaxed) {
-        TASK_MANAGER.run_all_tasks();
-    }
-
     THREAD_MANAGER.join_all();
 }
 
 pub fn shut_down() {
     RUNNING.store(false, Ordering::Relaxed);
-    
 }
