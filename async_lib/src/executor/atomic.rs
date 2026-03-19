@@ -7,7 +7,12 @@ use std::{
     pin::Pin
 };
 
+#[derive(Debug)]
 pub(crate) struct AtomicQueue<T>(Arc<Mutex<VecDeque<T>>>, &'static str);
+
+//SAFTEY: Arc<Mutex<T>>
+unsafe impl<T> Send for AtomicQueue<T> {}
+unsafe impl<T> Sync for AtomicQueue<T> {}
 
 impl<T> Clone for AtomicQueue<T> {
     fn clone(&self) -> Self {
@@ -77,13 +82,16 @@ impl<T: PartialEq> AtomicQueue<T> {
     }
 }
 
-pub(crate) struct AtomicMap<K: Ord, V:Send>(Arc<Mutex<BTreeMap<K, Arc<V>>>>);
+#[derive(Debug)]
+pub(crate) struct AtomicMap<K: Ord, V>(Arc<Mutex<BTreeMap<K, Arc<V>>>>);
 
-impl<K: Ord, V: Send> Clone for AtomicMap<K, V> {
+//SAFTEY: Arc<Mutex<T>>
+unsafe impl<K:Ord, V> Send for AtomicMap<K, V> {}
+unsafe impl<K:Ord, V> Sync for AtomicMap<K, V> {}
+
+impl<K:Ord, V> Clone for AtomicMap<K, V> {
     fn clone(&self) -> Self {
-        Self(
-            self.0.clone()
-        )
+        Self(self.0.clone())
     }
 }
 
@@ -130,10 +138,14 @@ impl<K: Ord, V:Send + Clone> AtomicMap<K, V> {
 }
 
 #[derive(Clone)]
-pub(crate) struct AtomicFuture(Arc<Mutex<Pin<Box<dyn Future<Output = ()> + 'static>>>>);
+pub(crate) struct AtomicFuture<T>(Arc<Mutex<Pin<Box<dyn Future<Output = T> + 'static>>>>);
 
-impl AtomicFuture {
-    pub fn new(f: impl Future<Output = ()> + 'static) -> Self {
+//SAFTEY: Arc<Mutex<T>>
+unsafe impl<T> Send for AtomicFuture<T> {}
+unsafe impl<T> Sync for AtomicFuture<T> {}
+
+impl<T> AtomicFuture<T> {
+    pub fn new(f: impl Future<Output = T> + 'static) -> Self {
         Self(
             Arc::new(
                 Mutex::new(
@@ -142,17 +154,32 @@ impl AtomicFuture {
             )
         )
     }
+}
 
-    pub fn poll(&mut self, cx: &mut Context<'_>) -> Poll<()> {
-        let mut task = self.0.lock().unwrap();
-        task.as_mut().poll(cx)
+impl<T> Future for AtomicFuture<T> {
+    type Output = T;
+
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let mut future = self.0.lock().unwrap();
+        future.as_mut().poll(cx)
     }
 }
 
-#[derive(Clone)]
-pub(crate) struct AtomicOption<T:Send>(Arc<Mutex<Option<Arc<T>>>>);
+pub(crate) struct AtomicOption<T>(Arc<Mutex<Option<Arc<T>>>>);
 
-impl<T:Send> AtomicOption<T> {
+//SAFTEY: Arc<Mutex<T>>
+unsafe impl<T> Send for AtomicOption<T> {}
+unsafe impl<T> Sync for AtomicOption<T> {}
+
+impl<T> Clone for AtomicOption<T> {
+    fn clone(&self) -> Self {
+        Self(
+            self.0.clone(),
+        )
+    }
+}
+
+impl<T> AtomicOption<T> {
     pub fn none() -> Self {
         Self::from(None)
     }
@@ -196,6 +223,10 @@ impl<T:Send> AtomicOption<T> {
 }
 
 pub(crate) struct AtomicList<T>(Arc<Mutex<Vec<T>>>, &'static str);
+
+//SAFTEY: Arc<Mutex<T>>
+unsafe impl<T> Send for AtomicList<T> {}
+unsafe impl<T> Sync for AtomicList<T> {}
 
 impl<T> Clone for AtomicList<T> {
     fn clone(&self) -> Self {

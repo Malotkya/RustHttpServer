@@ -1,4 +1,5 @@
 use std::{
+    pin::Pin,
     sync::{
         Arc,
         atomic::{
@@ -28,12 +29,17 @@ impl TaskId {
     }
 }
 
+//SAFETY: u64 is safe
+unsafe impl Send for TaskId {}
+unsafe impl Sync for TaskId {}
+
 #[derive(Clone)]
 pub(crate) struct Task {
     pub(crate) id: TaskId,
-    future: AtomicFuture
+    future: AtomicFuture<()>
 }
 
+//SAFETY: TaskId & AtomicFutre are Send/Sync safe
 unsafe impl Send for Task {}
 unsafe impl Sync for Task {}
 
@@ -46,7 +52,7 @@ impl Task {
     }
 
     pub(crate) fn poll(&mut self, context: &mut Context<'_>) -> Poll<()> {
-        self.future.poll(context)
+        Pin::new(&mut self.future).poll(context)
     }
 }
 
@@ -57,6 +63,7 @@ pub(crate) struct TaskHandler {
     thread_id: AtomicOption<usize>
 }
 
+//SAFETY: All properties are Send Safe
 unsafe impl Send for TaskHandler {}
 
 impl Clone for TaskHandler {
@@ -161,7 +168,9 @@ impl TaskHandler {
     pub fn thread_main(&'static self, id:usize) -> impl ThreadProcess {
         self.thread_id.set(Some(id));
 
-        return || {
+        return move || {
+            println!("{id} Started");
+
             while RUNNING.load(Ordering::Relaxed) {
                 self.idle_if_empty();
                 self.run_all_tasks();

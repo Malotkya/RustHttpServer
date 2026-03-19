@@ -56,6 +56,7 @@ impl<W: AsyncWrite + Unpin> AsyncBufWritter<W> {
         let available = self.spare_capacity();
         let amt_to_buffer = available.min(buf.len());
 
+        //SAFETY: amt_to_buffer will never be more then what is available.
         unsafe {
             self.write_to_buffer_unchecked(&buf[..amt_to_buffer]);
         }
@@ -63,6 +64,8 @@ impl<W: AsyncWrite + Unpin> AsyncBufWritter<W> {
         Poll::Ready(amt_to_buffer)
     }
 
+    /// # Safety
+    ///  Make sure there is enough room to write to
     unsafe fn write_to_buffer_unchecked(&mut self, buf: &[u8]) {
         debug_assert!(buf.len() <= self.spare_capacity());
         let old_len = self.buf.len();

@@ -26,6 +26,7 @@ impl<T: ?Sized + AsyncSeek + Unpin> AsyncSeek for &mut T {
 impl<P: DerefMut + Unpin> AsyncSeek for Pin<P>
 where P::Target: AsyncSeek {
     fn poll_seek(self: Pin<&mut Self>, cx: &mut Context<'_>, pos: super::SeekFrom) -> Poll<io::Result<u64>> {
+        //SAFTEY: Unpinning Double pin
         unsafe { self.get_unchecked_mut() }.as_mut().poll_seek(cx, pos)
     }
 }

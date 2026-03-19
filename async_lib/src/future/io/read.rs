@@ -54,6 +54,8 @@ impl AsyncRead for &[u8] {
     fn poll_read(mut self: Pin<&mut Self>, _cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<io::Result<usize>> {
         let amt = std::cmp::min(self.len(), buf.len());
         let (a, b) = self.split_at(amt);
+
+        //SAFETY: Copying from owned data.
         unsafe {
             buf[..amt]
                 .as_mut_ptr()
@@ -79,6 +81,8 @@ impl<T: AsRef<[u8]> + Unpin> AsyncRead for io::Cursor<T> {
         let amt = std::cmp::min(slice.len() - start, buf.len());
         // Add won't overflow because of pos check above.
         let end = start + amt;
+
+        //SAFETY: Pointing to owned data.
         unsafe {
             buf[..amt]
                 .as_mut_ptr()
@@ -91,8 +95,11 @@ impl<T: AsRef<[u8]> + Unpin> AsyncRead for io::Cursor<T> {
     }
 }
 
+/// Safety:
+/// User responsibility to make sure that the pointer stays valid
 impl<R: AsyncRead> AsyncRead for *mut R {
     fn poll_read(self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<io::Result<usize>> {
+        
         let pin = unsafe {
             Pin::new_unchecked(
                 &mut (*self.as_mut_unchecked())

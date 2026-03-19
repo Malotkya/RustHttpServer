@@ -35,10 +35,14 @@ impl AsyncBuffer {
         Self::with_capacitry(DEFAULT_BUFFER_SIZE)
     }
 
+    
     pub fn buffer(&self) -> &[u8] {
+        //SAFTEY: Pos and Filled will only be different if something has been added
         unsafe { self.buf.get_unchecked(self.pos..self.filled).assume_init_ref() }
     }
 
+    /// # Safety
+    /// Make sure there are no race conditions for the contents of the buffer.
     pub unsafe fn mut_buffer(&mut self) -> &mut [u8] {
         unsafe{ self.buf.get_unchecked_mut(self.pos..self.filled).assume_init_mut()}
     }
@@ -55,11 +59,15 @@ impl AsyncBuffer {
         self.capacity() - self.filled
     }
 
-    pub unsafe fn unfilled(&self) -> &[u8] {
+    /// # Safety
+    /// Data may be uninitalized
+    unsafe fn unfilled(&self) -> &[u8] {
         unsafe { self.buf.get_unchecked(self.filled+1..).assume_init_ref() }
     }
 
-    pub unsafe fn unfilled_mut(&mut self) -> &mut [u8] {
+    /// # Safety
+    /// Data may be uninitalized
+    unsafe fn unfilled_mut(&mut self) -> &mut [u8] {
         unsafe { self.buf.get_unchecked_mut(self.filled+1..).assume_init_mut() }
     }
 
@@ -84,6 +92,7 @@ impl AsyncBuffer {
 
     #[async_fn]
     pub fn poll_read_more<R: AsyncRead>(mut self:Pin<&mut Self>, cx:&mut Context<'_>, reader:&mut R) -> Poll<io::Result<usize>> {
+        //SAFETY: Only Writting to buffer
         let buf = unsafe{ self.unfilled_mut() };
         let amt = match pin!(reader.read(buf)).poll(cx) {
             Poll::Pending => return Poll::Pending,
@@ -100,6 +109,8 @@ impl AsyncBuffer {
 impl AsyncRead for AsyncBuffer {
     fn poll_read(self:Pin<&mut Self>, _cx: &mut std::task::Context<'_> ,buf: &mut [u8]) -> Poll<io::Result<usize> > {
         let amt = cmp::min(buf.len(), self.size());
+
+        //SAFTEY: Copying owned data without any type checking
         unsafe {
             buf.as_mut_ptr()
                 .cast::<u8>()

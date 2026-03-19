@@ -46,8 +46,10 @@ impl<R: AsyncRead + Unpin> AsyncBufReader<R> {
         let Self{ buf, inner} = &mut (*self);
 
         if pin!(buf.read_more(inner)).poll(cx).is_ready() {
+            //SAFETY: No race because we buf is owned.
             let slice = unsafe{ buf.mut_buffer() };
             Poll::Ready(Ok(
+                //SAFETY: Pointing to owned data.
                 unsafe{
                     std::slice::from_raw_parts(
                         slice.as_mut_ptr(),
@@ -63,14 +65,13 @@ impl<R: AsyncRead + Unpin> AsyncBufReader<R> {
     pub fn fill_buf(&mut self) -> impl Future<Output = io::Result<&[u8]>> {
         let mut pin = Pin::new(self);
         let future = std::future::poll_fn(move |cx|{
-            pin.as_mut().poll_fill_buf(cx).map(|result|result.map(|ptr|(ptr.as_ptr() as usize, ptr.len())))
+            pin.as_mut().poll_fill_buf(cx).map(|result|result.map(|buf|(buf.as_ptr() as usize, buf.len())))
         });
 
-        let combine = async||{
+        async{
+            //SAFETY: Pointing to owned data.
             future.await.map(|(ptr, len)| unsafe{ std::slice::from_raw_parts(ptr as *const u8, len)})
-        };
-
-        combine()
+        }
     }
 
     pub fn consume(&mut self, amt: usize) {
@@ -95,6 +96,7 @@ impl<R: AsyncRead> Stream for AsyncBufReader<R> {
             if size == 0 {
                 Poll::Ready(None)
             } else {
+                //SAFETY: Pointing to owned data.
                 let vec = unsafe{
                     let slice = buf.mut_buffer();
                     Vec::from_raw_parts(

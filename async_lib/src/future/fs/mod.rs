@@ -61,18 +61,14 @@ pub async fn set_permissions<P: AsRef<Path>>(path: P, perm: Permissions) -> io::
     }).await
 }
 
-pub async fn write<P: AsRef<Path>, C: AsRef<[u8]>>(path: P, contents: C) -> io::Result<()> {
+pub async fn write<P: AsRef<Path>, C: AsRef<[u8]> + Unpin>(path: P, contents: C) -> io::Result<()> {
     let path = canonicalize(path)?;
-    let ptr = contents.as_ref().as_ptr() as usize;
-    let len = contents.as_ref().len();
-
+    let owned = contents.as_ref().to_vec();
+    
     queue_job(move ||{
-        let contents = unsafe {
-            std::slice::from_raw_parts(ptr as *const u8, len)
-        };
         std::fs::write(
             path.clone(),
-            contents
+            owned
         )
     }).await
 }
