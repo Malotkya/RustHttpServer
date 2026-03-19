@@ -1,45 +1,54 @@
-use std::{
-    rc::Rc,
-    str::FromStr,
-    task::{Context, Poll},
-    pin::Pin
-};
+use std::pin::Pin;
 
-pub struct Listener {
-    callback: Rc<dyn Fn(String) + Sync + Send + 'static>,
+pub trait EventListener = Fn(&str) + Sync + Send + 'static;
+pub trait AsyncEventListener = (Fn(&str)-> Pin<Box<dyn Future<Output = ()>>>) + Sync + Send + 'static;
+
+pub(crate) enum ListenerType {
+    Sync(Box<dyn EventListener>),
+    Async(Box<dyn AsyncEventListener>)
+}
+
+impl ListenerType {
+    fn _sync(listener: impl EventListener) -> Self {
+        Self::Sync(Box::new(listener))
+    }
+
+    fn _async(listner: impl AsyncEventListener) -> Self {
+        Self::Async(Box::new(listner))
+    }
+
+    async fn call(&self, args:&str) {
+        match self {
+            Self::Async(fun) => fun(args).await,
+            Self::Sync(fun) => fun(args),
+        }
+    }
+}
+
+pub(crate) struct ListenerItem {
+    func: ListenerType,
     limit: Option<usize>,
     pub(crate) id: String
 }
 
-struct ListenerTask {
-    callback: Rc<dyn Fn(String) + Sync + Send + 'static>,
-    arg: String
-}
-
-impl Future for ListenerTask {
-    type Output = ();
-
-    fn poll(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Self::Output> {
-        (self.callback)(self.arg.clone());
-        Poll::Ready(())
-    }
-}
-
-impl Listener {
-    pub fn new<T: FromStr + 'static, E:Fn(T) + Sync + Send + 'static>(e: E, limit:Option<usize>) -> Self {
+impl ListenerItem {
+    pub fn new_sync(listener: impl EventListener, limit:Option<usize>) -> Self {
         Self {
             id: uuid::Uuid::new_v4().to_string(),
             limit,
-            callback: Rc::new(move |str:String| {
-                match str.parse() {
-                    Ok(value) => e(value),
-                    Err(_) => print!("An error occured when parsing {}!", str)
-                }
-            })
+            func: ListenerType::_sync(listener)
         }
     }
 
-    pub fn call<T: ToString>(&mut self, value:&T) -> bool {
+    pub fn new_async(listener: impl AsyncEventListener, limit:Option<usize>) -> Self {
+        Self {
+            id: uuid::Uuid::new_v4().to_string(),
+            limit,
+            func: ListenerType::_async(listener)
+        }
+    }
+
+    pub async fn call(&mut self, value:&str) -> bool {
         if let Some(limit) = self.limit {
             if limit == 0 {
                 return true;
@@ -48,12 +57,8 @@ impl Listener {
                 self.limit = Some(limit - 1);
             }
         }
-        //let string = value.to_string();
-        let arg = value.to_string();
-        let callback = Rc::clone(&self.callback);
-        crate::spawn_task(ListenerTask{
-            arg, callback
-        });
+
+        self.func.call(value).await;
 
         return false;
     }

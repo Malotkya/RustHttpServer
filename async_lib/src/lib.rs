@@ -3,7 +3,7 @@
 #![feature(trait_alias)]
 
 mod event;
-pub use event::{EventEmitter, EventEmitterWrapper};
+pub use event::*;
 pub mod executor;
 mod future;
 pub use future::*;
