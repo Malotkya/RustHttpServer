@@ -1,6 +1,7 @@
 use crate::{
     executor::{
-        Thread, is_running
+        is_running,
+        thread::ThreadProcess
     },
     io::{
         ErrorKind, Result
@@ -13,7 +14,7 @@ pub(crate) use super::clone_io_result;
 mod tcp;
 pub use tcp::*;
 
-pub fn tcp_listener_thread(addr:String, callback: impl Fn(TcpStream) + Sync + Send + 'static) -> Result<impl Thread<()>> {
+pub fn tcp_listener_thread(addr:String, callback: impl Fn(TcpStream) + Sync + Send + 'static) -> Result<impl ThreadProcess> {
     let mut listener = TcpListener::bind(addr.clone())?;
 
     if listener.set_nonblocking(true).is_err() {
